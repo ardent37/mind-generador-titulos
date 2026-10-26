@@ -2857,11 +2857,11 @@ function lines() { return [S.l1.trim(), S.l2.trim()].filter(Boolean); }
 function slug() {
   return lines().join('_').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48) || 'titulo';
 }
+/* Posición del título en el encuadre actual. Siempre devuelve el mismo objeto; la posición
+   por defecto se recalcula solo en rebuild() mientras el usuario no la haya tocado. */
 function placeNow() {
   if (S.frame === 'crop' || !L) return null;
-  let p = S.place[S.frame];
-  if (!p || !p.touched) p = S.place[S.frame] = Object.assign({touched: false}, defaultPlace(L, S.frame));
-  return p;
+  return S.place[S.frame] || (S.place[S.frame] = Object.assign({touched: false}, defaultPlace(L, S.frame)));
 }
 function outDims() { return {W: even(Math.round(FS.cw * EFF.scale)), H: even(Math.round(FS.ch * EFF.scale))}; }
 function fileName() {
@@ -2882,6 +2882,7 @@ function rebuild() {
   if (!hasInk) { L = null; TL = null; FS = null; refresh(r); return; }
   L = layout(ls, S.colors);
   TL = buildTimeline(L, modeOf(), TIMING);
+  if (S.frame !== 'crop' && S.place[S.frame] && !S.place[S.frame].touched) S.place[S.frame] = null;   /* sin tocar: recalcula la posición por defecto */
   FS = frameSpec(L, S.frame, placeNow());
   refresh(r);
 }
