@@ -1,6 +1,6 @@
 import sys
 r = lambda p: open(p, encoding="utf-8").read()
-app = "\n".join(r(f"src/{f}") for f in ("model.js", "encoders.js", "lottie.js", "ui.js"))
+app = "\n".join(r(f"src/{f}") for f in ("model.js", "caps.js", "encoders.js", "lottie.js", "ui.js", "fotos.js", "tabs.js"))
 app = app.replace("__FONTDATA__", r("fontdata.json"))
 html = r("src/template.html")
 html = html.replace("__FONTCSS__", r("fonts.css")).replace("__MP4LIB__", r("lib/mp4-muxer.js"))

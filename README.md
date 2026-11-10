@@ -1,10 +1,10 @@
-# Generador de títulos MiND
+# Herramientas MiND
 
-Herramienta web para crear títulos animados con el sistema de títulos del manual de identidad visual de MiND (colorblock, flecha y bandas auxiliares).
+Herramientas web con el manual de identidad visual de MiND: títulos animados (estilos Colorblock y Mayúsculas) y coloración de fotos en rojo o azul.
 
 **Abrir la herramienta:** https://ardent37.github.io/mind-generador-titulos/
 
-Escribe 1 o 2 líneas, elige formato, animación y encuadre, y descarga. Todo se genera en el navegador y no se envía nada a ningún servidor.
+En Títulos animados elige estilo (Colorblock con 1 o 2 líneas; Mayúsculas hasta 6), formato, animación y encuadre, y descarga. Todo se genera en el navegador y no se envía nada a ningún servidor.
 
 ## Formatos
 MP4 · MOV con transparencia · SVG animado · Lottie · WebM con transparencia · GIF · Secuencia PNG (ZIP)

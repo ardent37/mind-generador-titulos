@@ -9,7 +9,9 @@ const PALETTE = {
   azul50:   {hex: '#8080FF', name: 'Azul 50 %'},
   rojo50:   {hex: '#FFA6A6', name: 'Rojo 50 %'},
   amarillo: {hex: '#FFF061', name: 'Amarillo'},
-  naranja:  {hex: '#F9B233', name: 'Naranja'}
+  naranja:  {hex: '#F9B233', name: 'Naranja'},
+  rojo0:    {hex: '#FF0000', name: 'Rojo'},      /* rojo puro del estilo Mayúsculas (manual, pág. 30) */
+  blanco:   {hex: '#FFFFFF', name: 'Blanco'}
 };
 const GEO = {F: 165, left: 90, top: 288, cw: 1920, ch: 1080,
   padR: 1.08, arrowPadL: 1.40, abLen: 4.80, abOff: 0.0, atLen: 5.45, atOff: 0.60};
@@ -115,12 +117,16 @@ const MODES = {
 
 function buildTimeline(L, mode, tm) {
   tm = tm || TIMING; const sc = 1, lineDur = tm.lineDur, line2 = tm.line2, auxDelay = tm.auxDelay, auxDur = tm.auxDur;
-  const els = [];
-  L.rows.forEach(r => els.push({id: 'L' + r.i, kind: 'line', i: r.i, s: r.i ? line2 : 0, d: lineDur}));
-  L.bands.forEach((b, n) => els.push({id: 'B' + n, kind: 'band', i: n, s: (b.row ? line2 : 0) + auxDelay, d: auxDur}));
+  let els, refM;
+  if (L.style === 2) { els = capsElements(L); refM = 0; }
+  else {
+    els = [];
+    L.rows.forEach(r => els.push({id: 'L' + r.i, kind: 'line', i: r.i, s: r.i ? line2 : 0, d: lineDur}));
+    L.bands.forEach((b, n) => els.push({id: 'B' + n, kind: 'band', i: n, s: (b.row ? line2 : 0) + auxDelay, d: auxDur}));
+    refM = Math.max(...L.rows.map(r => (r.i ? REF.line2 * sc : 0) + lineDur),
+                    ...L.bands.map(b => (b.row ? REF.line2 * sc : 0) + REF.aux * sc + auxDur));
+  }
   const real = Math.max(...els.map(e => e.s + e.d));
-  const refM = Math.max(...L.rows.map(r => (r.i ? REF.line2 * sc : 0) + lineDur),
-                        ...L.bands.map(b => (b.row ? REF.line2 * sc : 0) + REF.aux * sc + auxDur));
   const clean = mode === 'clean';
   const M = clean ? real : Math.max(real, refM);
   const lead = clean ? 0 : tm.lead, hold = clean ? 0 : tm.hold;
@@ -147,14 +153,18 @@ function buildTimeline(L, mode, tm) {
   return {els, total, loop: MODES[mode].loop, mode, motion: M, lead, hold};
 }
 
-function progAt(segs, t) {
+function progAt(segs, t, ez) {
+  ez = ez || easeFn;
   let g = segs[segs.length - 1];
   for (let i = 0; i < segs.length; i++) if (t < segs[i].t1) { g = segs[i]; break; }
   if (g.k === 'h') return g.p0;
   const u = Math.min(1, Math.max(0, (t - g.t0) / (g.t1 - g.t0)));
-  return g.k === 'e' ? easeFn(u) : easeFn(1 - u);
+  return g.k === 'e' ? ez(u) : ez(1 - u);
 }
-function elProg(TL, id, t) { return progAt(TL.els.find(e => e.id === id).segs, t); }
+function elProg(TL, id, t) {
+  if (!TL.byId) { TL.byId = {}; TL.els.forEach(e => { TL.byId[e.id] = e; }); }
+  const e = TL.byId[id]; return progAt(e.segs, t, e.ez);
+}
 
 /* ===== Dibujo en canvas (vista previa y exportación raster) ===== */
 const RATIOS = {'16x9': {w: 1920, h: 1080, name: '16:9'}, '9x16': {w: 1080, h: 1920, name: '9:16'}, '1x1': {w: 1080, h: 1080, name: '1:1'}};
@@ -179,6 +189,7 @@ function drawFrame(ctx, L, TL, t, view, W, Hh, bg) {
   ctx.clearRect(0, 0, W, Hh);
   if (bg) { ctx.fillStyle = bg; ctx.fillRect(0, 0, W, Hh); }
   ctx.setTransform(W / view.w, 0, 0, Hh / view.h, -view.x * W / view.w, -view.y * Hh / view.h);
+  if (L.style === 2) { drawCaps(ctx, L, TL, t); return; }
   const H = L.H, LEFT = GEO.left;
   L.bands.forEach((b, n) => {
     const p = elProg(TL, 'B' + n, t); if (p <= 0) return;
@@ -213,24 +224,26 @@ function drawFrame(ctx, L, TL, t, view, W, Hh, bg) {
 /* ===== SVG ===== */
 const f2 = v => { let s = (Math.round(v * 100) / 100).toString(); return s === '-0' ? '0' : s; };
 
-function smilValues(segs, total, f) {
+function smilValues(segs, total, f, ease) {
+  ease = ease || EASE;
   const vals = [f(segs[0].p0)], kt = [0], sp = [];
-  const mir = [1 - EASE[2], 1 - EASE[3], 1 - EASE[0], 1 - EASE[1]];
+  const mir = [1 - ease[2], 1 - ease[3], 1 - ease[0], 1 - ease[1]];
   segs.forEach(g => {
     vals.push(f(g.p1)); kt.push(g.t1 / total);
-    sp.push(g.k === 'h' ? '0 0 1 1' : g.k === 'e' ? EASE.join(' ') : mir.map(v => +v.toFixed(4)).join(' '));
+    sp.push(g.k === 'h' ? '0 0 1 1' : g.k === 'e' ? ease.join(' ') : mir.map(v => +v.toFixed(4)).join(' '));
   });
   kt[kt.length - 1] = 1;
   return {values: vals.join(';'), keyTimes: kt.map(v => v.toFixed(5)).join(';'), keySplines: sp.join(';')};
 }
-function animEl(tag, attrs, segs, total, loop, f) {
-  const a = smilValues(segs, total, f);
+function animEl(tag, attrs, segs, total, loop, f, ease) {
+  const a = smilValues(segs, total, f, ease);
   return `<${tag} ${attrs} values="${a.values}" keyTimes="${a.keyTimes}" keySplines="${a.keySplines}" calcMode="spline" begin="0s" dur="${f2(total * 1000) / 1000}s" ${loop ? 'repeatCount="indefinite"' : 'fill="freeze"'}/>`;
 }
 
 /* svgFor: animado (TL) o estático en estado final (TL = null). */
 function svgFor(L, TL, o) {
   o = o || {};
+  if (L.style === 2) return svgCaps(L, TL, o);
   const view = o.fs.view, H = L.H, LEFT = GEO.left, uid = o.uid || '';
   const total = TL ? TL.total : 1, loop = TL ? TL.loop : false;
   const segsOf = id => TL.els.find(e => e.id === id).segs;

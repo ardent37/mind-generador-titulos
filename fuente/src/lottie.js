@@ -32,6 +32,7 @@ function pathToLottie(d, view, k) {
 }
 
 function lottieFor(L, TL, o) {
+  if (L.style === 2) return lottieCaps(L, TL, o);
   const fps = o.fps || 60, view = o.fs.view, K = o.fs.cw / view.w, W = Math.round(o.fs.cw), Hh = Math.round(o.fs.ch);
   const H = L.H, LEFT = GEO.left, ox = view.x, oy = view.y;
   const q = v => +(v * K).toFixed(2);

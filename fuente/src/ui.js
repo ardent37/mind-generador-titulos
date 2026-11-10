@@ -1,6 +1,10 @@
 'use strict';
 const $ = id => document.getElementById(id);
-const BG = {transparent: {name: 'Transparente', hex: null}, white: {name: 'Blanco', hex: '#FFFFFF'}, black: {name: 'Negro', hex: '#000000'}};
+const BG = {transparent: {name: 'Transparente', hex: null}, white: {name: 'Blanco', hex: '#FFFFFF'}, black: {name: 'Negro', hex: '#000000'},
+  blue: {name: 'Azul', hex: '#0000FF'}, red: {name: 'Rojo', hex: '#FF0000'}};
+const STYLES = {color: {name: 'Colorblock', sub: 'Bloques de color con flecha y bandas para tildes y astas.', code: 'colorblock'},
+  caps: {name: 'Mayúsculas', sub: 'Letras sin bloque; las letras emergen y la I pasa a i minúscula.', code: 'mayusculas'}};
+const MAX_CAPS_LINES = 6;
 
 /* Orden de los formatos: de más a menos probable para un equipo de diseño. */
 const FORMATS = [
@@ -20,7 +24,7 @@ const STRUCTS = {
 };
 const FRAMES = [{v: 'crop', n: 'Recortado al título', s: 'Sin margen. Ideal para superponer.'}, {v: '16x9', n: '16:9'}, {v: '9x16', n: '9:16'}, {v: '1x1', n: '1:1'}];
 
-const S = {l1: 'Área de', l2: 'seguridad', fmt: 'mp4', struct: 'in', repeat: false, bgPref: 'transparent', frame: '16x9', scalePref: 1, fpsPref: 60,
+const S = {style: 'color', capsLines: ['Título de', 'inicial'], capsColor: 'rojo0', l1: 'Área de', l2: 'seguridad', fmt: 'mp4', struct: 'in', repeat: false, bgPref: 'transparent', frame: '16x9', scalePref: 1, fpsPref: 60,
   colors: {l1: 'azul', l2: 'rojo', top: 'amarillo', bottom: 'naranja'}, place: {}};
 const HAS_CODECS = supportsCodecs();
 let L = null, TL = null, EFF = null, T = 0, playing = true, busy = null, FS = null;
@@ -37,11 +41,13 @@ function rules() {
   const f = S.fmt, def = fmtDef(f), why = {bg: {}, scale: {}, fps: {}, fmt: {}};
   FORMATS.forEach(x => { if (x.needs === 'codecs' && !HAS_CODECS) why.fmt[x.id] = 'Necesita Chrome o Edge actualizados.'; });
   if (f === 'mp4' || f === 'gif') why.bg.transparent = f === 'mp4' ? 'MP4 no admite transparencia.' : 'GIF no admite transparencia suave.';
-  if (f === 'lottie') why.bg.white = why.bg.black = 'Lottie no lleva fondo: lo pone tu app.';
+  if (f === 'lottie') why.bg.white = why.bg.black = why.bg.blue = why.bg.red = 'Lottie no lleva fondo: lo pone tu app.';
+  if (S.style === 'color') why.bg.blue = why.bg.red = 'Solo con el estilo Mayúsculas.';
   if (f === 'gif') { why.scale[2] = 'Con este tamaño el GIF pesaría demasiado.'; [30, 60].forEach(v => why.fps[v] = 'El GIF va a 25 fps.'); }
   else why.fps[25] = 'Solo para GIF.';
   const e = {};
   e.bg = why.bg[S.bgPref] ? (f === 'lottie' ? 'transparent' : 'white') : S.bgPref;
+  e.caps = S.style === 'caps';
   e.scale = why.scale[S.scalePref] ? 1 : S.scalePref;
   e.fps = f === 'gif' ? 25 : (S.fpsPref === 25 ? 60 : S.fpsPref);
   e.canRepeat = !!def.canLoop && S.struct !== 'clean';
@@ -90,7 +96,8 @@ function updateSwatch(host, off) {
 }
 
 /* ----- Estado derivado ----- */
-function lines() { return [S.l1.trim(), S.l2.trim()].filter(Boolean); }
+function lines() { return (S.style === 'caps' ? S.capsLines : [S.l1, S.l2]).map(x => x.trim()).filter(Boolean); }
+function allText() { return S.style === 'caps' ? S.capsLines.join('') : S.l1 + S.l2; }
 function slug() {
   return lines().join('_').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48) || 'titulo';
 }
@@ -102,7 +109,7 @@ function placeNow() {
 }
 function outDims() { return {W: even(Math.round(FS.cw * EFF.scale)), H: even(Math.round(FS.ch * EFF.scale))}; }
 function fileName() {
-  const f = fmtDef(S.fmt), base = `MiND_Titulo_${slug()}_${STRUCTS[S.struct].code}${EFF.repeat ? '-bucle' : ''}`;
+  const f = fmtDef(S.fmt), base = `MiND_Titulo_${slug()}_${S.style === 'caps' ? 'mayusculas_' : ''}${STRUCTS[S.struct].code}${EFF.repeat ? '-bucle' : ''}`;
   const fr = S.frame === 'crop' ? 'recortado' : S.frame;
   if (!f.raster) return `${base}_${fr}.${f.ext}`;
   const d = outDims();
@@ -111,13 +118,13 @@ function fileName() {
 const fmtTime = s => s.toFixed(1).replace('.', ',') + ' s';
 
 function rebuild() {
-  const ls = lines(), miss = [...new Set((S.l1 + S.l2).split('').filter(c => !D.chars[c]))];
+  const ls = lines(), miss = [...new Set(allText().split('').filter(c => !D.chars[c] && !(S.style === 'caps' && D.chars[c.toUpperCase()])))];
   const hasInk = ls.some(l => [...l].some(c => D.chars[c] && c !== ' '));
   $('warn').hidden = !miss.length;
   $('warn').textContent = miss.length ? 'Estos caracteres no están disponibles y se omiten: ' + miss.join(' ') : '';
   const r = rules(); EFF = r.e;
   if (!hasInk) { L = null; TL = null; FS = null; refresh(r); return; }
-  L = layout(ls, S.colors);
+  L = S.style === 'caps' ? layoutCaps(ls, PALETTE[S.capsColor].hex) : layout(ls, S.colors);
   TL = buildTimeline(L, modeOf(), TIMING);
   if (S.frame !== 'crop' && S.place[S.frame] && !S.place[S.frame].touched) S.place[S.frame] = null;   /* sin tocar: recalcula la posición por defecto */
   FS = frameSpec(L, S.frame, placeNow());
@@ -127,6 +134,14 @@ function rebuild() {
 function refresh(r) {
   r = r || rules();
   const has = !!L, two = has && L.two, f = fmtDef(S.fmt), ed = has && S.frame !== 'crop';
+  const caps = S.style === 'caps';
+  updateGroup($('g_style'));
+  $('textColor').hidden = caps; $('textCaps').hidden = !caps; $('colorsColor').hidden = caps; $('colorsCaps').hidden = !caps;
+  updateSwatch($('sw_caps'));
+  $('addLine').disabled = S.capsLines.length >= MAX_CAPS_LINES;
+  $('noteLines').textContent = S.capsLines.length >= MAX_CAPS_LINES ? `Máximo ${MAX_CAPS_LINES} líneas.` : '';
+  const bgHexNow = BG[r.e.bg].hex, tcol = PALETTE[S.capsColor].hex;
+  $('note_caps').textContent = caps && bgHexNow && bgHexNow.toUpperCase() === tcol.toUpperCase() ? 'El texto y el fondo son del mismo color: no se vería.' : '';
   updateGroup($('g_fmt'), r.why.fmt);
   updateGroup($('g_struct'));
   updateGroup($('g_repeat'));
@@ -141,11 +156,11 @@ function refresh(r) {
   $('fpsLabel').classList.toggle('first', $('sec_res').hidden);
   updateGroup($('g_fps'), r.why.fps);
   updateSwatch($('sw_l1')); updateSwatch($('sw_l2'), !two);
-  updateSwatch($('sw_top'), !(has && L.bands.some(b => b.kind === 'top')));
-  updateSwatch($('sw_bottom'), !(has && L.bands.some(b => b.kind === 'bottom')));
+  updateSwatch($('sw_top'), caps || !(has && L.bands.some(b => b.kind === 'top')));
+  updateSwatch($('sw_bottom'), caps || !(has && L.bands.some(b => b.kind === 'bottom')));
   $('note_l2').textContent = two ? '' : 'Añade una 2ª línea para elegir su color.';
-  $('note_top').textContent = (has && !L.bands.some(b => b.kind === 'top')) ? 'Este texto no lleva banda superior: ninguna tilde sobresale.' : '';
-  $('note_bottom').textContent = (has && !L.bands.some(b => b.kind === 'bottom')) ? 'Este texto no lleva banda inferior: ningún asta baja.' : '';
+  $('note_top').textContent = caps ? '' : (has && !L.bands.some(b => b.kind === 'top')) ? 'Este texto no lleva banda superior: ninguna tilde sobresale.' : '';
+  $('note_bottom').textContent = caps ? '' : (has && !L.bands.some(b => b.kind === 'bottom')) ? 'Este texto no lleva banda inferior: ningún asta baja.' : '';
   $('exportLabel').textContent = 'Descargar ' + f.name.replace(' con transparencia', '');
   $('export').disabled = !has || !!busy || !!r.why.fmt[S.fmt];
   $('editHelp').hidden = !ed;
@@ -173,6 +188,7 @@ function boxRect() { const p = placeNow(); return {x: p.x, y: p.y, w: L.bbox.w *
 function guides() { const R = RATIOS[S.frame], m = marginOf(R); return {x: [m, R.w / 2, R.w - m], y: [m, R.h / 2, R.h - m]}; }
 
 function drawPreview() {
+  if ($('panel-titulos').hidden) return;
   if (!L) { cctx.clearRect(0, 0, cv.width, cv.height); octx.clearRect(0, 0, ov.width, ov.height); return; }
   const box = $('stageBox'), cssW = box.clientWidth || 600, cssH = cssW * FS.ch / FS.cw, dpr = Math.min(2, window.devicePixelRatio || 1);
   const W = Math.round(cssW * dpr), Hh = Math.round(cssH * dpr);
@@ -203,6 +219,7 @@ function drawOverlay(dpr) {
 }
 function loop(now) {
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  if ($('panel-titulos').hidden) { requestAnimationFrame(loop); return; }   /* otra herramienta abierta: no animar */
   if (playing && TL) { T += dt; const tail = TL.loop ? 0 : 0.8; if (T > TL.total + tail) T = 0; }
   drawPreview(); requestAnimationFrame(loop);
 }
@@ -306,7 +323,7 @@ async function doExport(forceFmt) {
   $('status').textContent = 'Generando…'; $('err').hidden = true;
   const fs = FS;
   const o = {fs, scale: EFF.scale, fps: EFF.fps, bg: bgHex, cancel, progress: v => { $('prog').value = v; $('status').textContent = `Generando… ${Math.round(v * 100)} %`; }};
-  const colorsUsed = [bgHex || '#FFFFFF', '#FFFFFF', ...L.rows.map(r => r.color), ...L.bands.map(b => b.color)];
+  const colorsUsed = L.style === 2 ? [bgHex || '#FFFFFF', '#FFFFFF', L.color] : [bgHex || '#FFFFFF', '#FFFFFF', ...L.rows.map(r => r.color), ...L.bands.map(b => b.color)];
   let blob;
   try {
     if (fmt === 'svg') blob = new Blob([svgFor(L, TL, {fs, bg: bgHex, label: lines().join(' / ')})], {type: 'image/svg+xml'});
@@ -327,13 +344,34 @@ async function doExport(forceFmt) {
   } finally { busy = null; $('cancel').hidden = true; $('prog').hidden = true; refresh(); }
 }
 
+
+/* ----- Líneas del estilo Mayúsculas ----- */
+function renderCapsLines(focusIdx) {
+  const host = $('capsLines'); host.innerHTML = '';
+  S.capsLines.forEach((txt, i) => {
+    const row = document.createElement('div'); row.className = 'cline';
+    const inp = document.createElement('input'); inp.type = 'text'; inp.id = 'cl_' + i; inp.value = txt; inp.autocomplete = 'off'; inp.spellcheck = false;
+    inp.placeholder = i === 0 ? 'Primera línea' : `Línea ${i + 1}`; inp.setAttribute('aria-label', `Línea ${i + 1}`);
+    inp.addEventListener('input', e => { S.capsLines[i] = e.target.value; clearTimeout(window.__capsT); window.__capsT = setTimeout(() => { T = 0; rebuild(); }, 120); });
+    row.appendChild(inp);
+    if (S.capsLines.length > 1) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'mini'; b.textContent = 'Quitar'; b.setAttribute('aria-label', `Quitar la línea ${i + 1}`);
+      b.addEventListener('click', () => { S.capsLines.splice(i, 1); renderCapsLines(Math.max(0, i - 1)); T = 0; rebuild(); });
+      row.appendChild(b);
+    }
+    host.appendChild(row);
+  });
+  if (focusIdx !== undefined) { const el = $('cl_' + focusIdx); if (el) el.focus(); }
+}
+
 /* ----- Arranque ----- */
 function init() {
   /* título de la herramienta con el propio sistema de títulos del manual */
-  const hl = layout(['Generador de', 'títulos'], {l1: 'azul', l2: 'rojo', top: 'amarillo', bottom: 'naranja'});
-  $('brand').innerHTML = svgFor(hl, null, {fs: frameSpec(hl, 'crop'), uid: 'h_'}).replace(/^<\?xml[^>]*\?>\s*/, '').replace('width="100%" height="100%"', 'role="img" aria-label="Generador de títulos"');
+  const hl = layout(['Herramientas', 'de MiND'], {l1: 'azul', l2: 'rojo', top: 'amarillo', bottom: 'naranja'});
+  $('brand').innerHTML = svgFor(hl, null, {fs: frameSpec(hl, 'crop'), uid: 'h_'}).replace(/^<\?xml[^>]*\?>\s*/, '').replace('width="100%" height="100%"', 'role="img" aria-label="Herramientas de MiND"');
   $('brand').style.aspectRatio = `${hl.bbox.w} / ${hl.bbox.h}`;
 
+  radioGroup($('g_style'), 'style', Object.keys(STYLES).map(k => ({v: k, n: STYLES[k].name, s: STYLES[k].sub})), () => S.style, v => { S.style = v; T = 0; rebuild(); });
   radioGroup($('g_fmt'), 'fmt', FORMATS.map(f => ({v: f.id, n: f.name, s: f.use})), () => S.fmt, v => { S.fmt = v; rebuild(); });
   radioGroup($('g_struct'), 'struct', Object.keys(STRUCTS).map(k => ({v: k, n: STRUCTS[k].name, s: STRUCTS[k].sub})), () => S.struct, v => { S.struct = v; T = 0; rebuild(); }, 'cards one');
   radioGroup($('g_repeat'), 'repeat', [{v: 'once', n: 'Una pasada'}, {v: 'loop', n: 'Bucle'}], () => (EFF && EFF.repeat) ? 'loop' : 'once', v => { S.repeat = v === 'loop'; T = 0; rebuild(); }, 'seg');
@@ -341,12 +379,15 @@ function init() {
   radioGroup($('g_frame'), 'frame', FRAMES.map(f => ({v: f.v, n: f.n, s: f.s})), () => S.frame, v => { S.frame = v; rebuild(); }, 'seg');
   radioGroup($('g_scale'), 'scale', [{v: 0.5, n: 'Pequeño'}, {v: 1, n: 'Estándar'}, {v: 2, n: 'Grande'}], () => EFF ? EFF.scale : S.scalePref, v => { S.scalePref = v; rebuild(); }, 'seg');
   radioGroup($('g_fps'), 'fps', [{v: 25, n: '25'}, {v: 30, n: '30'}, {v: 60, n: '60'}], () => EFF ? EFF.fps : S.fpsPref, v => { S.fpsPref = v; rebuild(); }, 'seg');
+  swatchGroup($('sw_caps'), 'ccaps', ['rojo0', 'azul', 'blanco'], () => S.capsColor, k => { S.capsColor = k; rebuild(); });
   swatchGroup($('sw_l1'), 'cl1', ['azul', 'rojo', 'azul50', 'rojo50'], () => S.colors.l1, k => { S.colors.l1 = k; rebuild(); });
   swatchGroup($('sw_l2'), 'cl2', ['rojo', 'azul', 'rojo50', 'azul50'], () => S.colors.l2, k => { S.colors.l2 = k; rebuild(); });
   swatchGroup($('sw_top'), 'ctop', ['amarillo', 'naranja'], () => S.colors.top, k => { S.colors.top = k; rebuild(); });
   swatchGroup($('sw_bottom'), 'cbot', ['naranja', 'amarillo'], () => S.colors.bottom, k => { S.colors.bottom = k; rebuild(); });
 
   $('l1').value = S.l1; $('l2').value = S.l2;
+  renderCapsLines();
+  $('addLine').addEventListener('click', () => { if (S.capsLines.length < MAX_CAPS_LINES) { S.capsLines.push(''); renderCapsLines(S.capsLines.length - 1); rebuild(); } });
   let timer; ['l1', 'l2'].forEach(id => $(id).addEventListener('input', e => { S[id] = e.target.value; clearTimeout(timer); timer = setTimeout(() => { T = 0; rebuild(); }, 120); }));
   $('play').addEventListener('click', () => setPlaying(!playing));
   $('scrub').addEventListener('input', e => { setPlaying(false); T = parseFloat(e.target.value); });
