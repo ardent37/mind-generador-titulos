@@ -5,23 +5,27 @@
    el palo reduce su altura y el punto de la i emerge desde arriba (límite a la altura de la I mayúscula). */
 const CAPS = {step: 0.09, d1: 0.90, d2: 0.70, istep: 0.12, overlap: 0.70, ease: [0.33, 1, 0.68, 1]};
 const CAPS_EASE = bezier(...CAPS.ease);
+const MONO_OVERLAP = 0.6;           /* las filas del monoblock se solapan 0,6 u. para que no asome una línea entre ellas */
 const I_STEM = {x0: 123, x1: 421, xh: 1104, dotTop: 1557, dotBot: 1247};   /* medidas de la i de Inter Bold (unidades de fuente) */
 
 function capsPrep(text) { return [...text].map(c => c.toUpperCase() === 'I' ? 'i' : c.toUpperCase()).join(''); }
 
-function layoutCaps(rawLines, colorHex) {
+/* mono = color del monoblock (tercer estilo): un bloque por línea tras el texto. Margen lateral y superior = ancho de la l;
+   el interlineado (= ancho de la l) queda dentro del bloque de la línea siguiente, de modo que las filas encajan sin huecos. */
+function layoutCaps(rawLines, colorHex, mono) {
   const K = GEO.F / D.upm, capH = D.cap * K, lw = D.lw * K, pitch = capH + lw;     /* interlineado = ancho de la l */
+  const pad = mono ? lw : 0;
   const iPath = D.glyphs[D.chars['i']].p, dotP = iPath.slice(iPath.indexOf('Z') + 1);   /* 2.º trazado de la i = el punto */
   let k = 0; const lines = [];
   rawLines.forEach((raw, li) => {
-    const text = capsPrep(raw), base = GEO.top + capH + li * pitch, chars = [...text].filter(c => D.chars[c]);
+    const text = capsPrep(raw), base = GEO.top + capH + pad + li * pitch, chars = [...text].filter(c => D.chars[c]);
     /* posiciones con kerning */
     let x = 0; const run = [];
     chars.forEach((c, n) => { const g = D.glyphs[D.chars[c]]; run.push({c, g, x}); x += g.a + (chars[n + 1] ? (D.kern[c + chars[n + 1]] || 0) : 0); });
     const ink = run.filter(r => r.g.b);
     if (!ink.length) { lines.push({letters: [], base, floorY: base, limitY: base, width: 0, empty: true}); return; }
     const inkL = Math.min(...ink.map(r => r.x + r.g.b[0])) * K, inkR = Math.max(...ink.map(r => r.x + r.g.b[2])) * K;
-    const ox = GEO.left - inkL;
+    const ox = GEO.left + pad - inkL;
     const letters = [];
     run.forEach(r => {
       if (r.c === ' ') return;
@@ -36,11 +40,18 @@ function layoutCaps(rawLines, colorHex) {
     const desc = Math.max(0, ...letters.map(l => l.bot)), floorY = base + Math.max(0.02 * GEO.F, desc + 0.01 * GEO.F);
     const limitY = base - I_STEM.dotTop * K - 0.01 * GEO.F;
     letters.forEach(l => { l.hide = (floorY - base) + l.top + 2; l.dotDy = (limitY - (base - I_STEM.dotBot * K)) - 2; });
-    lines.push({letters, base, floorY, limitY, width: (inkR - inkL), desc});
+    const ln = {letters, base, floorY, limitY, width: (inkR - inkL), desc};
+    if (mono) ln.block = {x0: GEO.left, w: (inkR - inkL) + 2 * lw, y0: base - capH - lw, y1: base};
+    lines.push(ln);
   });
   const all = lines.flatMap(l => l.letters || []).filter(Boolean);
-  return {style: 2, lines, color: colorHex, capH, K, pitch, letters: all, words: wordsOf(rawLines, lines), rows: [{top: GEO.top}], bands: [], two: false,
-          bbox: capsBox(lines, capH), H: capH, xh: I_STEM.xh * K};
+  const L = {style: 2, lines, color: colorHex, capH, K, pitch, letters: all, words: wordsOf(rawLines, lines), rows: [{top: GEO.top}], bands: [], two: false,
+          bbox: capsBox(lines, capH, mono), H: capH, xh: I_STEM.xh * K, mono: mono || null, lw};
+  if (mono) {                       /* la última fila deja margen inferior (como mínimo ancho de la l; más si hay rabillos) */
+    const real = lines.filter(l => !l.empty), last = real[real.length - 1];
+    last.block.y1 = last.base + Math.max(lw, (last.desc || 0) + lw / 2);
+  }
+  return L;
 }
 /* palabras = grupos de letras entre espacios, dentro de cada línea */
 function wordsOf(rawLines, lines) {
@@ -53,8 +64,13 @@ function wordsOf(rawLines, lines) {
   });
   return words;
 }
-function capsBox(lines, capH) {
+function capsBox(lines, capH, mono) {
   const real = lines.filter(l => !l.empty);
+  if (mono) {
+    const lw = real[0].block.y1 - real[0].block.y0 - capH, last = real[real.length - 1];
+    const bottom = last.base + Math.max(lw, (last.desc || 0) + lw / 2);
+    return {x: GEO.left, y: real[0].block.y0, w: Math.max(...real.map(l => l.block.w)), h: bottom - real[0].block.y0};
+  }
   const first = real[0], last = real[real.length - 1];
   const topExt = Math.max(...first.letters.map(l => l.top));
   const y = first.base - topExt, bottom = last.base + (last.desc > 0.015 * GEO.F ? last.desc : 0);
@@ -63,11 +79,26 @@ function capsBox(lines, capH) {
 }
 
 /* ----- línea de tiempo: un elemento por letra (T), y por i el palo (S) y el punto (D) ----- */
+const MONO = {rowDelay: 0.25, lag: 0.10, step: 0.07};      /* monoblock: cada fila arranca algo después de la anterior */
+function easeInv(y) { let lo = 0, hi = 1; for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (easeFn(m) < y) lo = m; else hi = m; } return (lo + hi) / 2; }
 function capsElements(L) {
-  const els = [];
-  L.letters.forEach(l => els.push({id: 'T' + l.k, kind: 'letter', s: l.k * CAPS.step, d: CAPS.d1, ease: CAPS.ease, ez: CAPS_EASE}));
+  const els = [], start = {};
+  if (L.mono) {
+    let nth = 0;
+    L.lines.forEach((ln, i) => {
+      if (ln.empty) return;
+      const s0 = nth++ * MONO.rowDelay;
+      els.push({id: 'M' + i, kind: 'block', s: s0, d: TIMING.lineDur, ease: EASE, ez: easeFn});
+      /* cada letra emerge cuando el borde del bloque ya la ha cubierto (y al menos con el ritmo mínimo) */
+      ln.letters.forEach((l, n) => {
+        const frac = Math.min(1, Math.max(0, (l.x - ln.block.x0) / ln.block.w));
+        start[l.k] = s0 + Math.max(MONO.lag + n * MONO.step, TIMING.lineDur * easeInv(frac));
+      });
+    });
+  } else L.letters.forEach(l => { start[l.k] = l.k * CAPS.step; });
+  L.letters.forEach(l => els.push({id: 'T' + l.k, kind: 'letter', s: start[l.k], d: CAPS.d1, ease: CAPS.ease, ez: CAPS_EASE}));
   L.words.forEach(w => {
-    const wend = Math.max(...w.map(l => l.k * CAPS.step + CAPS.d1)), is = w.filter(l => l.isI);
+    const wend = Math.max(...w.map(l => start[l.k] + CAPS.d1)), is = w.filter(l => l.isI);
     is.forEach((l, n) => {
       const p2 = wend - CAPS.overlap * CAPS.d1 + n * CAPS.istep;
       els.push({id: 'S' + l.k, kind: 'stem', s: p2, d: CAPS.d2, ease: CAPS.ease, ez: CAPS_EASE});
@@ -80,11 +111,23 @@ function capsElements(L) {
 /* ----- canvas ----- */
 function drawCaps(ctx, L, TL, t) {
   const capH = L.capH, xh = L.xh, BIG = 1e5;
+  const bw = [];                      /* monoblock: anchura visible de cada fila */
+  if (L.mono) {
+    const path = new Path2D();
+    L.lines.forEach((ln, i) => {
+      if (ln.empty) return;
+      bw[i] = ln.block.w * elProg(TL, 'M' + i, t);
+      if (bw[i] > 0) path.rect(ln.block.x0, ln.block.y0, bw[i], ln.block.y1 - ln.block.y0 + (i < L.lines.length - 1 ? MONO_OVERLAP : 0));
+    });
+    ctx.fillStyle = L.mono; ctx.fill(path);
+  }
   ctx.fillStyle = L.color;
-  L.lines.forEach(ln => {
+  L.lines.forEach((ln, i) => {
     if (ln.empty) return;
+    if (L.mono && !(bw[i] > 0)) return;
+    const cx0 = L.mono ? ln.block.x0 : -BIG, cw = L.mono ? bw[i] : 2 * BIG;
     ctx.save();
-    const clip = new Path2D(); clip.rect(-BIG, -BIG, 2 * BIG, BIG + ln.floorY); ctx.clip(clip);
+    const clip = new Path2D(); clip.rect(cx0, -BIG, cw, BIG + ln.floorY); ctx.clip(clip);
     ln.letters.forEach(l => {
       const p = elProg(TL, 'T' + l.k, t); if (p <= 0) return;
       ctx.save(); ctx.translate(0, l.hide * (1 - p));
@@ -99,7 +142,7 @@ function drawCaps(ctx, L, TL, t) {
     });
     ctx.restore();
     ctx.save();
-    const lim = new Path2D(); lim.rect(-BIG, ln.limitY, 2 * BIG, BIG); ctx.clip(lim);
+    const lim = new Path2D(); lim.rect(cx0, ln.limitY, cw, BIG); ctx.clip(lim);
     ln.letters.forEach(l => {
       if (!l.isI) return;
       const p = elProg(TL, 'D' + l.k, t); if (p <= 0) return;
@@ -116,15 +159,21 @@ function svgCaps(L, TL, o) {
   const view = o.fs.view, uid = o.uid || '', total = TL ? TL.total : 1, loop = TL ? TL.loop : false;
   const el = id => TL.els.find(e => e.id === id);
   const an = (tag, attrs, id, f) => TL ? animEl(tag, attrs, el(id).segs, total, loop, f, el(id).ease) : '';
-  const defs = [], body = [];
+  const defs = [], body = [], blocks = [];
   if (o.bg) body.push(`<rect x="${f2(view.x)}" y="${f2(view.y)}" width="${f2(view.w)}" height="${f2(view.h)}" fill="${o.bg}"/>`);
   const capH = L.capH, xh = L.xh, X0 = f2(view.x - 50), WW = f2(view.w + 100);
   const p0 = TL ? 0 : 1;
   const grp = [];
   L.lines.forEach((ln, i) => {
     if (ln.empty) return;
-    defs.push(`<clipPath id="${uid}f${i}"><rect x="${X0}" y="${f2(view.y - 2000)}" width="${WW}" height="${f2(ln.floorY - view.y + 2000)}"/></clipPath>`);
-    defs.push(`<clipPath id="${uid}l${i}"><rect x="${X0}" y="${f2(ln.limitY)}" width="${WW}" height="${f2(view.h + 4000)}"/></clipPath>`);
+    const bwAt = p => f2(ln.block.w * p), wAnim = L.mono ? an('animate', 'attributeName="width"', 'M' + i, bwAt) : '';
+    const cx = L.mono ? f2(ln.block.x0) : X0, cwid = L.mono ? bwAt(p0) : WW;
+    if (L.mono) {
+      const last = i < L.lines.length - 1;
+      blocks.push(`<rect x="${f2(ln.block.x0)}" y="${f2(ln.block.y0)}" width="${bwAt(p0)}" height="${f2(ln.block.y1 - ln.block.y0 + (last ? MONO_OVERLAP : 0))}">${wAnim}</rect>`);
+    }
+    defs.push(`<clipPath id="${uid}f${i}"><rect x="${cx}" y="${f2(view.y - 2000)}" width="${cwid}" height="${f2(ln.floorY - view.y + 2000)}">${wAnim}</rect></clipPath>`);
+    defs.push(`<clipPath id="${uid}l${i}"><rect x="${cx}" y="${f2(ln.limitY)}" width="${cwid}" height="${f2(view.h + 4000)}">${wAnim}</rect></clipPath>`);
     let letters = '', dots = '';
     ln.letters.forEach(l => {
       const ty = an('animateTransform', 'attributeName="transform" type="translate"', 'T' + l.k, p => `0 ${f2(l.hide * (1 - p))}`);
@@ -140,6 +189,7 @@ function svgCaps(L, TL, o) {
     });
     grp.push(`<g clip-path="url(#${uid}f${i})">${letters}</g><g clip-path="url(#${uid}l${i})">${dots}</g>`);
   });
+  if (blocks.length) body.push(`<g fill="${L.mono}">${blocks.join('')}</g>`);
   body.push(`<g fill="${L.color}">${grp.join('')}</g>`);
   const label = (o.label || '').replace(/[<>&-]/g, ' ');
   return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="${f2(view.x)} ${f2(view.y)} ${f2(view.w)} ${f2(view.h)}">\n` +
@@ -170,11 +220,16 @@ function lottieCaps(L, TL, o) {
   let ind = 1; const layers = [];
   const mask = (y0, y1) => [{inv: false, mode: 'a', nm: 'Límite', o: {a: 0, k: 100}, x: {a: 0, k: 0},
     pt: {a: 0, k: {c: true, i: [[0, 0], [0, 0], [0, 0], [0, 0]], o: [[0, 0], [0, 0], [0, 0], [0, 0]], v: [[-100, y0], [W + 100, y0], [W + 100, y1], [-100, y1]]}}}];
-  const layer = (nm, shapes, masks) => ({ddd: 0, ind: ind++, ty: 4, nm, sr: 1, ks: baseKs, ao: 0, shapes, ip: 0, op, st: 0, bm: 0, hasMask: true, masksProperties: masks});
+  const layer = (nm, shapes, masks) => Object.assign({ddd: 0, ind: ind++, ty: 4, nm, sr: 1, ks: baseKs, ao: 0, shapes, ip: 0, op, st: 0, bm: 0}, masks ? {hasMask: true, masksProperties: masks} : {});
+  /* monoblock: la máscara de cada línea se abre con el bloque (rectángulo animado) */
+  const z4 = () => [[0, 0], [0, 0], [0, 0], [0, 0]];
+  const amask = (i, ln, y0, y1) => [{inv: false, mode: 'a', nm: 'Bloque', o: {a: 0, k: 100}, x: {a: 0, k: 0},
+    pt: kf('M' + i, p => { const xa = qx(ln.block.x0), xb = +(xa + q(ln.block.w * p)).toFixed(2); return [{c: true, i: z4(), o: z4(), v: [[xa, y0], [xb, y0], [xb, y1], [xa, y1]]}]; })}];
   const capH = L.capH, xh = L.xh;
   L.lines.forEach((ln, i) => {
     if (ln.empty) return;
-    const floorM = mask(-100, qy(ln.floorY)), limitM = mask(qy(ln.limitY), Hh + 100);   /* máscaras justo del tamaño del lienzo: lottie-web falla con coordenadas enormes */
+    /* máscaras justo del tamaño del lienzo: lottie-web falla con coordenadas enormes */
+    const floorM = L.mono ? amask(i, ln, -100, qy(ln.floorY)) : mask(-100, qy(ln.floorY)), limitM = L.mono ? amask(i, ln, qy(ln.limitY), Hh + 100) : mask(qy(ln.limitY), Hh + 100);
     ln.letters.forEach(l => {
       const pos = kf('T' + l.k, p => [0, q(l.hide * (1 - p))]);
       let shapes;
@@ -193,5 +248,15 @@ function lottieCaps(L, TL, o) {
       layers.push(layer(`Letra ${l.k + 1}`, shapes, floorM));
     });
   });
+  if (L.mono) {                      /* bloques: al fondo (última posición = capa inferior) */
+    const fillM = {ty: 'fl', c: {a: 0, k: hexRgb(L.mono)}, o: {a: 0, k: 100}, r: 1};
+    L.lines.forEach((ln, i) => {
+      if (ln.empty) return;
+      const h = ln.block.y1 - ln.block.y0 + (i < L.lines.length - 1 ? MONO_OVERLAP : 0), xa = qx(ln.block.x0);
+      const rc = {ty: 'rc', nm: 'Bloque', d: 1, r: {a: 0, k: 0},
+        s: kf('M' + i, p => [q(ln.block.w * p), q(h)]), p: kf('M' + i, p => [+(xa + q(ln.block.w * p) / 2).toFixed(2), +(qy(ln.block.y0) + q(h) / 2).toFixed(2)])};
+      layers.push(layer(`Bloque ${i + 1}`, [{ty: 'gr', nm: 'Bloque', it: [rc, fillM, tr({a: 0, k: [0, 0]})]}]));
+    });
+  }
   return {v: '5.9.0', fr: fps, ip: 0, op, w: W, h: Hh, nm: 'MiND título mayúsculas', ddd: 0, assets: [], layers};
 }

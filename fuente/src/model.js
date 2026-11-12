@@ -11,7 +11,8 @@ const PALETTE = {
   amarillo: {hex: '#FFF061', name: 'Amarillo'},
   naranja:  {hex: '#F9B233', name: 'Naranja'},
   rojo0:    {hex: '#FF0000', name: 'Rojo'},      /* rojo puro del estilo Mayúsculas (manual, pág. 30) */
-  blanco:   {hex: '#FFFFFF', name: 'Blanco'}
+  blanco:   {hex: '#FFFFFF', name: 'Blanco'},
+  negro:    {hex: '#000000', name: 'Negro'}
 };
 const GEO = {F: 165, left: 90, top: 288, cw: 1920, ch: 1080,
   padR: 1.08, arrowPadL: 1.40, abLen: 4.80, abOff: 0.0, atLen: 5.45, atOff: 0.60};

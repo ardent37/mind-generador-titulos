@@ -3,7 +3,8 @@ const $ = id => document.getElementById(id);
 const BG = {transparent: {name: 'Transparente', hex: null}, white: {name: 'Blanco', hex: '#FFFFFF'}, black: {name: 'Negro', hex: '#000000'},
   blue: {name: 'Azul', hex: '#0000FF'}, red: {name: 'Rojo', hex: '#FF0000'}};
 const STYLES = {color: {name: 'Colorblock', sub: 'Bloques de color con flecha y bandas para tildes y astas.', code: 'colorblock'},
-  caps: {name: 'Mayúsculas', sub: 'Letras sin bloque; las letras emergen y la I pasa a i minúscula.', code: 'mayusculas'}};
+  caps: {name: 'Mayúsculas', sub: 'Letras sin bloque; las letras emergen y la I pasa a i minúscula.', code: 'mayusculas'},
+  mono: {name: 'Monoblock', sub: 'Un bloque negro o blanco tras el texto; el bloque se abre y las letras emergen.', code: 'monoblock'}};
 const MAX_CAPS_LINES = 6;
 
 /* Orden de los formatos: de más a menos probable para un equipo de diseño. */
@@ -24,7 +25,7 @@ const STRUCTS = {
 };
 const FRAMES = [{v: 'crop', n: 'Recortado al título', s: 'Sin margen. Ideal para superponer.'}, {v: '16x9', n: '16:9'}, {v: '9x16', n: '9:16'}, {v: '1x1', n: '1:1'}];
 
-const S = {style: 'color', capsLines: ['Título de', 'inicial'], capsColor: 'rojo0', l1: 'Área de', l2: 'seguridad', fmt: 'mp4', struct: 'in', repeat: false, bgPref: 'transparent', frame: '16x9', scalePref: 1, fpsPref: 60,
+const S = {style: 'color', capsLines: ['Título de', 'inicial'], capsColor: 'rojo0', monoBlock: 'negro', l1: 'Área de', l2: 'seguridad', fmt: 'mp4', struct: 'in', repeat: false, bgPref: 'transparent', frame: '16x9', scalePref: 1, fpsPref: 60,
   colors: {l1: 'azul', l2: 'rojo', top: 'amarillo', bottom: 'naranja'}, place: {}};
 const HAS_CODECS = supportsCodecs();
 let L = null, TL = null, EFF = null, T = 0, playing = true, busy = null, FS = null;
@@ -47,7 +48,7 @@ function rules() {
   else why.fps[25] = 'Solo para GIF.';
   const e = {};
   e.bg = why.bg[S.bgPref] ? (f === 'lottie' ? 'transparent' : 'white') : S.bgPref;
-  e.caps = S.style === 'caps';
+  e.caps = S.style !== 'color';
   e.scale = why.scale[S.scalePref] ? 1 : S.scalePref;
   e.fps = f === 'gif' ? 25 : (S.fpsPref === 25 ? 60 : S.fpsPref);
   e.canRepeat = !!def.canLoop && S.struct !== 'clean';
@@ -96,8 +97,9 @@ function updateSwatch(host, off) {
 }
 
 /* ----- Estado derivado ----- */
-function lines() { return (S.style === 'caps' ? S.capsLines : [S.l1, S.l2]).map(x => x.trim()).filter(Boolean); }
-function allText() { return S.style === 'caps' ? S.capsLines.join('') : S.l1 + S.l2; }
+const monoText = () => PALETTE[S.monoBlock === 'negro' ? 'blanco' : 'negro'].hex;   /* texto en el color contrario al del bloque */
+function lines() { return (S.style !== 'color' ? S.capsLines : [S.l1, S.l2]).map(x => x.trim()).filter(Boolean); }
+function allText() { return S.style !== 'color' ? S.capsLines.join('') : S.l1 + S.l2; }
 function slug() {
   return lines().join('_').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48) || 'titulo';
 }
@@ -109,7 +111,7 @@ function placeNow() {
 }
 function outDims() { return {W: even(Math.round(FS.cw * EFF.scale)), H: even(Math.round(FS.ch * EFF.scale))}; }
 function fileName() {
-  const f = fmtDef(S.fmt), base = `MiND_Titulo_${slug()}_${S.style === 'caps' ? 'mayusculas_' : ''}${STRUCTS[S.struct].code}${EFF.repeat ? '-bucle' : ''}`;
+  const f = fmtDef(S.fmt), base = `MiND_Titulo_${slug()}_${S.style === 'caps' ? 'mayusculas_' : S.style === 'mono' ? 'monoblock_' : ''}${STRUCTS[S.struct].code}${EFF.repeat ? '-bucle' : ''}`;
   const fr = S.frame === 'crop' ? 'recortado' : S.frame;
   if (!f.raster) return `${base}_${fr}.${f.ext}`;
   const d = outDims();
@@ -118,13 +120,14 @@ function fileName() {
 const fmtTime = s => s.toFixed(1).replace('.', ',') + ' s';
 
 function rebuild() {
-  const ls = lines(), miss = [...new Set(allText().split('').filter(c => !D.chars[c] && !(S.style === 'caps' && D.chars[c.toUpperCase()])))];
+  const ls = lines(), miss = [...new Set(allText().split('').filter(c => !D.chars[c] && !(S.style !== 'color' && D.chars[c.toUpperCase()])))];
   const hasInk = ls.some(l => [...l].some(c => D.chars[c] && c !== ' '));
   $('warn').hidden = !miss.length;
   $('warn').textContent = miss.length ? 'Estos caracteres no están disponibles y se omiten: ' + miss.join(' ') : '';
   const r = rules(); EFF = r.e;
   if (!hasInk) { L = null; TL = null; FS = null; refresh(r); return; }
-  L = S.style === 'caps' ? layoutCaps(ls, PALETTE[S.capsColor].hex) : layout(ls, S.colors);
+  L = S.style === 'caps' ? layoutCaps(ls, PALETTE[S.capsColor].hex)
+    : S.style === 'mono' ? layoutCaps(ls, monoText(), PALETTE[S.monoBlock].hex) : layout(ls, S.colors);
   TL = buildTimeline(L, modeOf(), TIMING);
   if (S.frame !== 'crop' && S.place[S.frame] && !S.place[S.frame].touched) S.place[S.frame] = null;   /* sin tocar: recalcula la posición por defecto */
   FS = frameSpec(L, S.frame, placeNow());
@@ -134,14 +137,16 @@ function rebuild() {
 function refresh(r) {
   r = r || rules();
   const has = !!L, two = has && L.two, f = fmtDef(S.fmt), ed = has && S.frame !== 'crop';
-  const caps = S.style === 'caps';
+  const caps = S.style !== 'color', mono = S.style === 'mono';
   updateGroup($('g_style'));
-  $('textColor').hidden = caps; $('textCaps').hidden = !caps; $('colorsColor').hidden = caps; $('colorsCaps').hidden = !caps;
-  updateSwatch($('sw_caps'));
+  $('textColor').hidden = caps; $('textCaps').hidden = !caps; $('colorsColor').hidden = caps; $('colorsCaps').hidden = S.style !== 'caps'; $('colorsMono').hidden = !mono;
+  updateSwatch($('sw_caps')); updateSwatch($('sw_mono'));
   $('addLine').disabled = S.capsLines.length >= MAX_CAPS_LINES;
   $('noteLines').textContent = S.capsLines.length >= MAX_CAPS_LINES ? `Máximo ${MAX_CAPS_LINES} líneas.` : '';
   const bgHexNow = BG[r.e.bg].hex, tcol = PALETTE[S.capsColor].hex;
-  $('note_caps').textContent = caps && bgHexNow && bgHexNow.toUpperCase() === tcol.toUpperCase() ? 'El texto y el fondo son del mismo color: no se vería.' : '';
+  $('note_caps').textContent = S.style === 'caps' && bgHexNow && bgHexNow.toUpperCase() === tcol.toUpperCase() ? 'El texto y el fondo son del mismo color: no se vería.' : '';
+  const bcol = PALETTE[S.monoBlock].hex;
+  $('note_mono').textContent = mono && bgHexNow && bgHexNow.toUpperCase() === bcol.toUpperCase() ? 'El bloque y el fondo son del mismo color: el bloque no se distinguiría.' : 'El texto toma el color contrario al del bloque.';
   updateGroup($('g_fmt'), r.why.fmt);
   updateGroup($('g_struct'));
   updateGroup($('g_repeat'));
@@ -323,7 +328,7 @@ async function doExport(forceFmt) {
   $('status').textContent = 'Generando…'; $('err').hidden = true;
   const fs = FS;
   const o = {fs, scale: EFF.scale, fps: EFF.fps, bg: bgHex, cancel, progress: v => { $('prog').value = v; $('status').textContent = `Generando… ${Math.round(v * 100)} %`; }};
-  const colorsUsed = L.style === 2 ? [bgHex || '#FFFFFF', '#FFFFFF', L.color] : [bgHex || '#FFFFFF', '#FFFFFF', ...L.rows.map(r => r.color), ...L.bands.map(b => b.color)];
+  const colorsUsed = L.style === 2 ? [bgHex || '#FFFFFF', '#FFFFFF', '#000000', L.color, ...(L.mono ? [L.mono] : [])] : [bgHex || '#FFFFFF', '#FFFFFF', ...L.rows.map(r => r.color), ...L.bands.map(b => b.color)];
   let blob;
   try {
     if (fmt === 'svg') blob = new Blob([svgFor(L, TL, {fs, bg: bgHex, label: lines().join(' / ')})], {type: 'image/svg+xml'});
@@ -379,6 +384,7 @@ function init() {
   radioGroup($('g_frame'), 'frame', FRAMES.map(f => ({v: f.v, n: f.n, s: f.s})), () => S.frame, v => { S.frame = v; rebuild(); }, 'seg');
   radioGroup($('g_scale'), 'scale', [{v: 0.5, n: 'Pequeño'}, {v: 1, n: 'Estándar'}, {v: 2, n: 'Grande'}], () => EFF ? EFF.scale : S.scalePref, v => { S.scalePref = v; rebuild(); }, 'seg');
   radioGroup($('g_fps'), 'fps', [{v: 25, n: '25'}, {v: 30, n: '30'}, {v: 60, n: '60'}], () => EFF ? EFF.fps : S.fpsPref, v => { S.fpsPref = v; rebuild(); }, 'seg');
+  swatchGroup($('sw_mono'), 'cmono', ['negro', 'blanco'], () => S.monoBlock, k => { S.monoBlock = k; rebuild(); });
   swatchGroup($('sw_caps'), 'ccaps', ['rojo0', 'azul', 'blanco'], () => S.capsColor, k => { S.capsColor = k; rebuild(); });
   swatchGroup($('sw_l1'), 'cl1', ['azul', 'rojo', 'azul50', 'rojo50'], () => S.colors.l1, k => { S.colors.l1 = k; rebuild(); });
   swatchGroup($('sw_l2'), 'cl2', ['rojo', 'azul', 'rojo50', 'azul50'], () => S.colors.l2, k => { S.colors.l2 = k; rebuild(); });
