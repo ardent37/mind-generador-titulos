@@ -138,7 +138,7 @@ function refresh(r) {
   r = r || rules();
   const has = !!L, two = has && L.two, f = fmtDef(S.fmt), ed = has && S.frame !== 'crop';
   const caps = S.style !== 'color', mono = S.style === 'mono';
-  updateGroup($('g_style'));
+  updateStyleCards();
   $('textColor').hidden = caps; $('textCaps').hidden = !caps; $('colorsColor').hidden = caps; $('colorsCaps').hidden = S.style !== 'caps'; $('colorsMono').hidden = !mono;
   updateSwatch($('sw_caps')); updateSwatch($('sw_mono'));
   $('addLine').disabled = S.capsLines.length >= MAX_CAPS_LINES;
@@ -350,6 +350,27 @@ async function doExport(forceFmt) {
 }
 
 
+
+/* ----- Selector de estilo: ejemplos estáticos del propio estilo ----- */
+const STYLE_SAMPLES = {
+  color: () => layout(['Título 1'], {l1: 'azul', l2: 'rojo', top: 'amarillo', bottom: 'naranja'}),
+  caps: () => layoutCaps(['Titulo 2'], PALETTE.rojo0.hex),
+  mono: () => layoutCaps(['Titulo 3'], '#FFFFFF', '#000000')
+};
+const STYLE_LABELS = {color: 'Título 1', caps: 'TiTULO 2', mono: 'TiTULO 3'};
+function buildStyleCards() {
+  const host = $('g_style'); host.innerHTML = ''; host.className = 'stylecards';
+  Object.keys(STYLES).forEach(k => {
+    const l = STYLE_SAMPLES[k](), fsp = frameSpec(l, 'crop');
+    const svg = svgFor(l, null, {fs: fsp, uid: 'st' + k + '_'}).replace(/^<\?xml[^>]*\?>\s*/, '').replace('width="100%" height="100%"', 'role="img" aria-hidden="true"');
+    const lab = document.createElement('label'); lab.className = 'scard'; lab.dataset.v = k;
+    lab.innerHTML = `<input type="radio" id="style_${k}" name="style" value="${k}" aria-label="${STYLE_LABELS[k]}"><span class="thumb" style="aspect-ratio:${l.bbox.w} / ${l.bbox.h};width:${Math.round(l.bbox.w * 0.26)}px;max-width:100%">${svg}</span>`;
+    host.appendChild(lab);
+    lab.querySelector('input').addEventListener('change', () => { S.style = k; T = 0; rebuild(); });
+  });
+}
+function updateStyleCards() { $('g_style').querySelectorAll('.scard').forEach(l => { l.querySelector('input').checked = l.dataset.v === S.style; }); }
+
 /* ----- Líneas del estilo Mayúsculas ----- */
 function renderCapsLines(focusIdx) {
   const host = $('capsLines'); host.innerHTML = '';
@@ -376,7 +397,7 @@ function init() {
   $('brand').innerHTML = svgFor(hl, null, {fs: frameSpec(hl, 'crop'), uid: 'h_'}).replace(/^<\?xml[^>]*\?>\s*/, '').replace('width="100%" height="100%"', 'role="img" aria-label="Herramientas de MiND"');
   $('brand').style.aspectRatio = `${hl.bbox.w} / ${hl.bbox.h}`;
 
-  radioGroup($('g_style'), 'style', Object.keys(STYLES).map(k => ({v: k, n: STYLES[k].name, s: STYLES[k].sub})), () => S.style, v => { S.style = v; T = 0; rebuild(); });
+  buildStyleCards();
   radioGroup($('g_fmt'), 'fmt', FORMATS.map(f => ({v: f.id, n: f.name, s: f.use})), () => S.fmt, v => { S.fmt = v; rebuild(); });
   radioGroup($('g_struct'), 'struct', Object.keys(STRUCTS).map(k => ({v: k, n: STRUCTS[k].name, s: STRUCTS[k].sub})), () => S.struct, v => { S.struct = v; T = 0; rebuild(); }, 'cards one');
   radioGroup($('g_repeat'), 'repeat', [{v: 'once', n: 'Una pasada'}, {v: 'loop', n: 'Bucle'}], () => (EFF && EFF.repeat) ? 'loop' : 'once', v => { S.repeat = v === 'loop'; T = 0; rebuild(); }, 'seg');
