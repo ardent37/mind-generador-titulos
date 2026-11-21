@@ -2557,6 +2557,7 @@ function capsPrep(text) { return [...text].map(c => c.toUpperCase() === 'I' ? 'i
 /* mono = color del monoblock (tercer estilo): un bloque por línea tras el texto. Margen lateral y superior = ancho de la l;
    el interlineado (= ancho de la l) queda dentro del bloque de la línea siguiente, de modo que las filas encajan sin huecos. */
 function layoutCaps(rawLines, colorHex, mono) {
+  let L_accent = false;
   const K = GEO.F / D.upm, capH = D.cap * K, lw = D.lw * K, pitch = capH + lw;     /* interlineado = ancho de la l */
   const pad = mono ? lw : 0;
   const iPath = D.glyphs[D.chars['i']].p, dotP = iPath.slice(iPath.indexOf('Z') + 1);   /* 2.º trazado de la i = el punto */
@@ -2592,6 +2593,10 @@ function layoutCaps(rawLines, colorHex, mono) {
     /* Manual (pág. 41): si parte del monoblock queda en voladizo (la línea es más ancha que la siguiente) o es la última, el
        bloque se prolonga por debajo de la línea media altura de la "I" (la mitad de la altura de las mayúsculas). */
     const real = lines.filter(l => !l.empty);
+    /* Si la 1.ª línea lleva alguna tilde que sobresale de la caja de texto habitual (por encima de las mayúsculas; el punto de la i no cuenta),
+       el bloque crece por arriba la mitad de lo que crecen los voladizos por abajo. */
+    L_accent = real[0].letters.some(l => !l.isI && l.top > capH + 0.5);
+    if (L_accent) real[0].block.y0 -= capH / 4;
     real.forEach((ln, j) => {
       const next = real[j + 1], over = !next || ln.block.w > next.block.w + 0.5;
       ln.block.y1 = ln.base + (over ? Math.max(capH / 2, (ln.desc || 0) + 0.01 * GEO.F) : 0);
@@ -2599,7 +2604,7 @@ function layoutCaps(rawLines, colorHex, mono) {
   }
   const all = lines.flatMap(l => l.letters || []).filter(Boolean);
   const L = {style: 2, lines, color: colorHex, capH, K, pitch, letters: all, words: wordsOf(rawLines, lines), rows: [{top: GEO.top}], bands: [], two: false,
-          bbox: capsBox(lines, capH, mono), H: capH, xh: I_STEM.xh * K, mono: mono || null, lw};
+          bbox: capsBox(lines, capH, mono), H: capH, xh: I_STEM.xh * K, mono: mono || null, lw, accent: L_accent};
   return L;
 }
 /* palabras = grupos de letras entre espacios, dentro de cada línea */
