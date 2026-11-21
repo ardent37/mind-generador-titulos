@@ -26,7 +26,7 @@ const STRUCTS = {
   inOut: {name: 'Bidireccional',  sub: 'Aparece y se reproduce en reversa hasta desaparecer.', code: 'bidireccional'},
   clean: {name: 'Clean',          sub: 'Solo el movimiento de entrada, sin pausas. Para montar en edición.', code: 'clean'}
 };
-const FRAMES = [{v: 'crop', n: 'Recortado al título', s: 'Sin margen. Ideal para superponer.'}, {v: '16x9', n: '16:9'}, {v: '9x16', n: '9:16'}, {v: '1x1', n: '1:1'}];
+const FRAMES = [{v: 'crop', n: 'Recortado al título', s: 'Sin margen. Ideal para superponer.'}, {v: '16x9', n: '16:9'}, {v: '9x16', n: '9:16'}, {v: '4x5', n: '4:5'}, {v: '1x1', n: '1:1'}];
 
 const S = {style: 'color', capsLines: ['Título de', 'inicial'], capsColor: 'rojo0', monoBlock: 'negro', l1: 'Área de', l2: 'seguridad', fmt: 'mp4', still: false, lastAnim: 'mp4', lastStill: 'ipng', struct: 'in', repeat: false, bgPref: 'transparent', frame: '16x9', scalePref: 1, fpsPref: 60,
   colors: {l1: 'azul', l2: 'rojo', top: 'amarillo', bottom: 'naranja'}, place: {}};

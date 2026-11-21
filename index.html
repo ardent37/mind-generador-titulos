@@ -83,6 +83,8 @@ legend~*{clear:both}
 .sub.first{margin-top:0}
 #g_frame{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
 #g_frame .opt:first-child{grid-column:1/-1}
+#g_frame{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
+#g_frame .opt:not(:first-child){padding-left:8px;padding-right:8px}
 .sub small{font-weight:500;color:var(--muted);letter-spacing:0}
 label.f{display:block;font-weight:700;font-size:.75rem;margin:0 0 8px}
 input[type=text]{width:100%;font:700 1.05rem/1.2 var(--font);padding:12px 14px;border:2px solid var(--line);background:#fff;color:var(--ink);margin:0 0 20px;border-radius:0}
@@ -2425,7 +2427,7 @@ function elProg(TL, id, t) {
 }
 
 /* ===== Dibujo en canvas (vista previa y exportación raster) ===== */
-const RATIOS = {'16x9': {w: 1920, h: 1080, name: '16:9'}, '9x16': {w: 1080, h: 1920, name: '9:16'}, '1x1': {w: 1080, h: 1080, name: '1:1'}};
+const RATIOS = {'16x9': {w: 1920, h: 1080, name: '16:9'}, '9x16': {w: 1080, h: 1920, name: '9:16'}, '4x5': {w: 1080, h: 1350, name: '4:5'}, '1x1': {w: 1080, h: 1080, name: '1:1'}};
 function marginOf(R) { return R.w * 90 / 1920; }
 /* Posición inicial del título dentro de un encuadre (unidades del lienzo). */
 function defaultPlace(L, frame) {
@@ -3201,7 +3203,7 @@ const STRUCTS = {
   inOut: {name: 'Bidireccional',  sub: 'Aparece y se reproduce en reversa hasta desaparecer.', code: 'bidireccional'},
   clean: {name: 'Clean',          sub: 'Solo el movimiento de entrada, sin pausas. Para montar en edición.', code: 'clean'}
 };
-const FRAMES = [{v: 'crop', n: 'Recortado al título', s: 'Sin margen. Ideal para superponer.'}, {v: '16x9', n: '16:9'}, {v: '9x16', n: '9:16'}, {v: '1x1', n: '1:1'}];
+const FRAMES = [{v: 'crop', n: 'Recortado al título', s: 'Sin margen. Ideal para superponer.'}, {v: '16x9', n: '16:9'}, {v: '9x16', n: '9:16'}, {v: '4x5', n: '4:5'}, {v: '1x1', n: '1:1'}];
 
 const S = {style: 'color', capsLines: ['Título de', 'inicial'], capsColor: 'rojo0', monoBlock: 'negro', l1: 'Área de', l2: 'seguridad', fmt: 'mp4', still: false, lastAnim: 'mp4', lastStill: 'ipng', struct: 'in', repeat: false, bgPref: 'transparent', frame: '16x9', scalePref: 1, fpsPref: 60,
   colors: {l1: 'azul', l2: 'rojo', top: 'amarillo', bottom: 'naranja'}, place: {}};

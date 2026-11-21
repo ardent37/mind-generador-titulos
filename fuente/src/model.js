@@ -168,7 +168,7 @@ function elProg(TL, id, t) {
 }
 
 /* ===== Dibujo en canvas (vista previa y exportación raster) ===== */
-const RATIOS = {'16x9': {w: 1920, h: 1080, name: '16:9'}, '9x16': {w: 1080, h: 1920, name: '9:16'}, '1x1': {w: 1080, h: 1080, name: '1:1'}};
+const RATIOS = {'16x9': {w: 1920, h: 1080, name: '16:9'}, '9x16': {w: 1080, h: 1920, name: '9:16'}, '4x5': {w: 1080, h: 1350, name: '4:5'}, '1x1': {w: 1080, h: 1080, name: '1:1'}};
 function marginOf(R) { return R.w * 90 / 1920; }
 /* Posición inicial del título dentro de un encuadre (unidades del lienzo). */
 function defaultPlace(L, frame) {

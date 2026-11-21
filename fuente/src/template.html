@@ -81,6 +81,8 @@ legend~*{clear:both}
 .sub.first{margin-top:0}
 #g_frame{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
 #g_frame .opt:first-child{grid-column:1/-1}
+#g_frame{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
+#g_frame .opt:not(:first-child){padding-left:8px;padding-right:8px}
 .sub small{font-weight:500;color:var(--muted);letter-spacing:0}
 label.f{display:block;font-weight:700;font-size:.75rem;margin:0 0 8px}
 input[type=text]{width:100%;font:700 1.05rem/1.2 var(--font);padding:12px 14px;border:2px solid var(--line);background:#fff;color:var(--ink);margin:0 0 20px;border-radius:0}
