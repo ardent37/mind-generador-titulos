@@ -137,6 +137,7 @@ input[type=text]:focus-visible{border-color:var(--azul);outline-color:var(--azul
 .titlebox{margin-top:28px;display:grid;gap:14px}
 .range{display:flex;align-items:center;gap:14px}
 .range input{flex:1;min-width:0;accent-color:var(--azul);height:44px}
+.rlab{flex:1;font-size:.8rem;font-weight:700}
 .ptbox{display:flex;align-items:center;gap:6px;font-weight:700;font-size:.8rem}
 .ptbox input{flex:none;width:84px;height:44px;padding:0 10px;border:2px solid var(--line,#d0d0d0);font:inherit;font-weight:700;font-variant-numeric:tabular-nums;text-align:right;background:#fff}
 .ptbox input:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
@@ -239,6 +240,8 @@ footer{max-width:1180px;margin:0 auto;padding:0 32px 40px;color:#9a9a9a;font-siz
           <span class="sub" style="margin:0">Tamaño del texto</span>
           <div class="range"><input id="scaleT" type="range" min="15" max="300" step="1" value="100" aria-label="Tamaño del título dentro del cuadro"><label class="ptbox"><input id="scalePt" type="number" min="20" max="900" step="1" inputmode="numeric" aria-label="Tamaño del texto en puntos"><span>pt</span></label></div>
           <p class="note" style="margin:0">Cuerpo del texto en puntos. 1 pt = 1 px con la resolución Estándar.</p>
+          <div class="range"><span class="rlab">Mismo tamaño medido como en Canva</span><label class="ptbox"><input id="scaleCv" type="number" min="1" max="2000" step="0.5" inputmode="decimal" aria-label="Tamaño del texto con el sistema de Canva"><span>Canva</span></label></div>
+          <p class="note" id="cvNote" style="margin:0"></p>
           <button class="mini" id="resetPlace" type="button">Restablecer posición</button>
         </div>
         <span class="sub">Fondo</span>
@@ -3472,10 +3475,16 @@ function commitPlace() {
 }
 /* Tamaño del texto: cuerpo en pt del cuadro (1 pt = 1 px a resolución Estándar). Con escala 100 % el cuerpo es GEO.F. */
 const PT_MIN = 20, PT_MAX = 900;
+/* Canva mide el cuerpo en pt a 96 ppp (1 px = 0,75 pt). Documento de Canva = la imagen exportada, así que depende de la resolución elegida. */
+const CANVA_K = 0.75;
+const canvaRes = () => (EFF && EFF.scale) || S.scalePref || 1;
+const fmtCv = v => String(Math.round(v * 10) / 10);
 function syncScale() {
   const p = placeNow(), pt = Math.round(p.s * GEO.F);
   $('scaleT').value = Math.round(p.s * 100);
   if (document.activeElement !== $('scalePt')) $('scalePt').value = pt;
+  if (document.activeElement !== $('scaleCv')) $('scaleCv').value = fmtCv(p.s * GEO.F * canvaRes() * CANVA_K);
+  $('cvNote').textContent = `Para un documento de Canva de ${outDims().W} × ${outDims().H} (el tamaño de la imagen exportada).`;
 }
 function scaleAboutCenter(ns) {
   const p = placeNow(), b = boxRect(), cx = b.x + b.w / 2, cy = b.y + b.h / 2;
@@ -3519,6 +3528,10 @@ function initEditing() {
   pt.addEventListener('input', () => { const v = parseFloat(pt.value); if (editable() && v >= PT_MIN && v <= PT_MAX) scaleAboutCenter(v / GEO.F); });
   pt.addEventListener('change', () => { pt.blur(); if (L && S.frame !== 'crop') syncScale(); });
   pt.addEventListener('keydown', e => { if (e.key === 'Enter') pt.blur(); });
+  const cv2 = $('scaleCv');
+  cv2.addEventListener('input', () => { const v = parseFloat(cv2.value), ptv = v / (canvaRes() * CANVA_K); if (editable() && ptv >= PT_MIN && ptv <= PT_MAX) scaleAboutCenter(ptv / GEO.F); });
+  cv2.addEventListener('change', () => { cv2.blur(); if (L && S.frame !== 'crop') syncScale(); });
+  cv2.addEventListener('keydown', e => { if (e.key === 'Enter') cv2.blur(); });
   $('resetPlace').addEventListener('click', () => { S.place[S.frame] = null; rebuild(); });
 }
 function fileUpdate() { if (L) $('fname').textContent = fileName(); }
