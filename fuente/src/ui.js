@@ -47,12 +47,13 @@ function rules() {
   if (f === 'mp4' || f === 'gif' || f === 'ijpg') why.bg.transparent = f === 'mp4' ? 'MP4 no admite transparencia.' : f === 'ijpg' ? 'JPG no admite transparencia.' : 'GIF no admite transparencia suave.';
   if (f === 'lottie') why.bg.white = why.bg.black = why.bg.blue = why.bg.red = 'Lottie no lleva fondo: lo pone tu app.';
   if (S.style === 'color') why.bg.blue = why.bg.red = 'Solo con el estilo Mayúsculas.';
+  if (!def.still) why.scale[4] = 'Solo para imágenes (PNG o JPG).';   /* 4× supera los límites de los códecs de vídeo */
   if (f === 'gif') { why.scale[2] = 'Con este tamaño el GIF pesaría demasiado.'; [30, 60].forEach(v => why.fps[v] = 'El GIF va a 25 fps.'); }
   else why.fps[25] = 'Solo para GIF.';
   const e = {};
   e.bg = why.bg[S.bgPref] ? (f === 'lottie' ? 'transparent' : 'white') : S.bgPref;
   e.caps = S.style !== 'color';
-  e.scale = why.scale[S.scalePref] ? 1 : S.scalePref;
+  e.scale = why.scale[S.scalePref] ? (S.scalePref === 4 && !why.scale[2] ? 2 : 1) : S.scalePref;
   e.fps = f === 'gif' ? 25 : (S.fpsPref === 25 ? 60 : S.fpsPref);
   e.canRepeat = !!def.canLoop && S.struct !== 'clean';
   e.repeat = e.canRepeat && S.repeat;
@@ -456,7 +457,7 @@ function init() {
   radioGroup($('g_repeat'), 'repeat', [{v: 'once', n: 'Una pasada'}, {v: 'loop', n: 'Bucle'}], () => (EFF && EFF.repeat) ? 'loop' : 'once', v => { S.repeat = v === 'loop'; T = 0; rebuild(); }, 'seg');
   radioGroup($('g_bg'), 'bg', Object.keys(BG).map(k => ({v: k, n: BG[k].name})), () => EFF ? EFF.bg : S.bgPref, v => { S.bgPref = v; rebuild(); }, 'seg');
   radioGroup($('g_frame'), 'frame', FRAMES.map(f => ({v: f.v, n: f.n, s: f.s})), () => S.frame, v => { S.frame = v; rebuild(); }, 'seg');
-  radioGroup($('g_scale'), 'scale', [{v: 0.5, n: 'Pequeño'}, {v: 1, n: 'Estándar'}, {v: 2, n: 'Grande'}], () => EFF ? EFF.scale : S.scalePref, v => { S.scalePref = v; rebuild(); }, 'seg');
+  radioGroup($('g_scale'), 'scale', [{v: 0.5, n: 'Pequeño'}, {v: 1, n: 'Estándar'}, {v: 2, n: 'Grande'}, {v: 4, n: 'Máximo'}], () => EFF ? EFF.scale : S.scalePref, v => { S.scalePref = v; rebuild(); }, 'seg');
   radioGroup($('g_fps'), 'fps', [{v: 25, n: '25'}, {v: 30, n: '30'}, {v: 60, n: '60'}], () => EFF ? EFF.fps : S.fpsPref, v => { S.fpsPref = v; rebuild(); }, 'seg');
   swatchGroup($('sw_mono'), 'cmono', ['negro', 'blanco'], () => S.monoBlock, k => { S.monoBlock = k; rebuild(); });
   swatchGroup($('sw_caps'), 'ccaps', ['rojo0', 'azul', 'blanco'], () => S.capsColor, k => { S.capsColor = k; rebuild(); });
