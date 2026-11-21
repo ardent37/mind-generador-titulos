@@ -7,7 +7,9 @@ Herramientas web con el manual de identidad visual de MiND: títulos animados (e
 En Títulos animados elige estilo (Colorblock con 1 o 2 líneas; Mayúsculas y Monoblock hasta 6 líneas), formato, animación y encuadre, y descarga. Todo se genera en el navegador y no se envía nada a ningún servidor.
 
 ## Formatos
-MP4 · MOV con transparencia · SVG animado · Lottie · WebM con transparencia · GIF · Secuencia PNG (ZIP)
+Imagen: PNG · SVG · JPG
+
+Animación: MP4 · MOV con transparencia · SVG animado · Lottie · WebM con transparencia · GIF · Secuencia PNG (ZIP)
 
 Para MP4 y WebM hace falta Chrome o Edge actualizados.
 

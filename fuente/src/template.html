@@ -208,10 +208,13 @@ footer{max-width:1180px;margin:0 auto;padding:0 32px 40px;color:#9a9a9a;font-siz
 
       <fieldset>
         <legend><span class="h">→ Formato</span></legend>
+        <span class="sub first">Tipo</span>
+        <div id="g_kind"></div>
+        <span class="sub">Archivo</span>
         <div id="g_fmt"></div>
       </fieldset>
 
-      <fieldset>
+      <fieldset id="fs_anim">
         <legend><span class="h">→ Animación</span></legend>
         <div id="g_struct"></div>
         <div id="repeatBox" hidden>
@@ -280,7 +283,7 @@ footer{max-width:1180px;margin:0 auto;padding:0 32px 40px;color:#9a9a9a;font-siz
         <canvas id="ov" tabindex="0" aria-label="Posición del título: usa las flechas para moverlo y + o − para cambiar su tamaño"></canvas>
       </div>
       <p class="edithelp" id="editHelp" hidden>Arrastra el título para moverlo y una esquina para cambiar su tamaño. Se pega a los márgenes y a los ejes centrales.</p>
-      <div class="transport">
+      <div class="transport" id="transport">
         <button id="play" type="button" aria-pressed="true">Pausa</button>
         <input id="scrub" type="range" min="0" max="1" step="0.001" value="0" aria-label="Posición en la animación">
         <span class="time" id="time" aria-live="off"></span>

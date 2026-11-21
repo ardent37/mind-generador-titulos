@@ -15,6 +15,9 @@ const FORMATS = [
   {id: 'lottie', name: 'Lottie (JSON)',          ext: 'json', use: 'Para apps y web con reproductor Lottie.', raster: false, canLoop: true},
   {id: 'webm',   name: 'WebM con transparencia', ext: 'webm', use: 'Vídeo web ligero con fondo transparente.', raster: true, needs: 'codecs'},
   {id: 'gif',    name: 'GIF',                    ext: 'gif',  use: 'Último recurso: email o chat. Menos calidad.', raster: true, canLoop: true},
+  {id: 'ipng',   name: 'PNG',                    ext: 'png',  use: 'Imagen con transparencia. La más versátil.', raster: true, still: true},
+  {id: 'isvg',   name: 'SVG',                    ext: 'svg',  use: 'Vector editable en Illustrator, Figma o Affinity.', raster: false, still: true},
+  {id: 'ijpg',   name: 'JPG',                    ext: 'jpg',  use: 'Ligera, para documentos y redes. Sin transparencia.', raster: true, still: true},
   {id: 'png',    name: 'Secuencia PNG (ZIP)',    ext: 'zip',  use: 'Fotogramas con transparencia para After Effects o cualquier editor.', raster: true}
 ];
 /* Estructura (qué ocurre) × repetición (solo en formatos que pueden llevarla incorporada). */
@@ -25,7 +28,7 @@ const STRUCTS = {
 };
 const FRAMES = [{v: 'crop', n: 'Recortado al título', s: 'Sin margen. Ideal para superponer.'}, {v: '16x9', n: '16:9'}, {v: '9x16', n: '9:16'}, {v: '1x1', n: '1:1'}];
 
-const S = {style: 'color', capsLines: ['Título de', 'inicial'], capsColor: 'rojo0', monoBlock: 'negro', l1: 'Área de', l2: 'seguridad', fmt: 'mp4', struct: 'in', repeat: false, bgPref: 'transparent', frame: '16x9', scalePref: 1, fpsPref: 60,
+const S = {style: 'color', capsLines: ['Título de', 'inicial'], capsColor: 'rojo0', monoBlock: 'negro', l1: 'Área de', l2: 'seguridad', fmt: 'mp4', still: false, lastAnim: 'mp4', lastStill: 'ipng', struct: 'in', repeat: false, bgPref: 'transparent', frame: '16x9', scalePref: 1, fpsPref: 60,
   colors: {l1: 'azul', l2: 'rojo', top: 'amarillo', bottom: 'naranja'}, place: {}};
 const HAS_CODECS = supportsCodecs();
 let L = null, TL = null, EFF = null, T = 0, playing = true, busy = null, FS = null;
@@ -41,7 +44,7 @@ function modeOf() {
 function rules() {
   const f = S.fmt, def = fmtDef(f), why = {bg: {}, scale: {}, fps: {}, fmt: {}};
   FORMATS.forEach(x => { if (x.needs === 'codecs' && !HAS_CODECS) why.fmt[x.id] = 'Necesita Chrome o Edge actualizados.'; });
-  if (f === 'mp4' || f === 'gif') why.bg.transparent = f === 'mp4' ? 'MP4 no admite transparencia.' : 'GIF no admite transparencia suave.';
+  if (f === 'mp4' || f === 'gif' || f === 'ijpg') why.bg.transparent = f === 'mp4' ? 'MP4 no admite transparencia.' : f === 'ijpg' ? 'JPG no admite transparencia.' : 'GIF no admite transparencia suave.';
   if (f === 'lottie') why.bg.white = why.bg.black = why.bg.blue = why.bg.red = 'Lottie no lleva fondo: lo pone tu app.';
   if (S.style === 'color') why.bg.blue = why.bg.red = 'Solo con el estilo Mayúsculas.';
   if (f === 'gif') { why.scale[2] = 'Con este tamaño el GIF pesaría demasiado.'; [30, 60].forEach(v => why.fps[v] = 'El GIF va a 25 fps.'); }
@@ -111,11 +114,12 @@ function placeNow() {
 }
 function outDims() { return {W: even(Math.round(FS.cw * EFF.scale)), H: even(Math.round(FS.ch * EFF.scale))}; }
 function fileName() {
-  const f = fmtDef(S.fmt), base = `MiND_Titulo_${slug()}_${S.style === 'caps' ? 'mayusculas_' : S.style === 'mono' ? 'monoblock_' : ''}${STRUCTS[S.struct].code}${EFF.repeat ? '-bucle' : ''}`;
+  const f = fmtDef(S.fmt), pre = S.style === 'caps' ? 'mayusculas_' : S.style === 'mono' ? 'monoblock_' : '';
+  const base = f.still ? `MiND_Titulo_${slug()}_${pre}imagen` : `MiND_Titulo_${slug()}_${pre}${STRUCTS[S.struct].code}${EFF.repeat ? '-bucle' : ''}`;
   const fr = S.frame === 'crop' ? 'recortado' : S.frame;
   if (!f.raster) return `${base}_${fr}.${f.ext}`;
   const d = outDims();
-  return `${base}_${d.W}x${d.H}_${EFF.fps}fps.${f.ext}`;
+  return f.still ? `${base}_${d.W}x${d.H}.${f.ext}` : `${base}_${d.W}x${d.H}_${EFF.fps}fps.${f.ext}`;
 }
 const fmtTime = s => s.toFixed(1).replace('.', ',') + ' s';
 
@@ -128,7 +132,8 @@ function rebuild() {
   if (!hasInk) { L = null; TL = null; FS = null; refresh(r); return; }
   L = S.style === 'caps' ? layoutCaps(ls, PALETTE[S.capsColor].hex)
     : S.style === 'mono' ? layoutCaps(ls, monoText(), PALETTE[S.monoBlock].hex) : layout(ls, S.colors);
-  TL = buildTimeline(L, modeOf(), TIMING);
+  TL = buildTimeline(L, S.still ? 'once' : modeOf(), TIMING);
+  if (S.still) { T = TL.total; }          /* imagen: el título ya completo */
   if (S.frame !== 'crop' && S.place[S.frame] && !S.place[S.frame].touched) S.place[S.frame] = null;   /* sin tocar: recalcula la posición por defecto */
   FS = frameSpec(L, S.frame, placeNow());
   refresh(r);
@@ -147,7 +152,9 @@ function refresh(r) {
   $('note_caps').textContent = S.style === 'caps' && bgHexNow && bgHexNow.toUpperCase() === tcol.toUpperCase() ? 'El texto y el fondo son del mismo color: no se vería.' : '';
   const bcol = PALETTE[S.monoBlock].hex;
   $('note_mono').textContent = mono && bgHexNow && bgHexNow.toUpperCase() === bcol.toUpperCase() ? 'El bloque y el fondo son del mismo color: el bloque no se distinguiría.' : 'El texto toma el color contrario al del bloque.';
+  updateGroup($('g_kind'));
   updateGroup($('g_fmt'), r.why.fmt);
+  $('fs_anim').hidden = f.still; $('transport').hidden = f.still;
   updateGroup($('g_struct'));
   updateGroup($('g_repeat'));
   $('repeatBox').hidden = !r.e.canRepeat;
@@ -157,7 +164,7 @@ function refresh(r) {
   $('titleBox').hidden = !ed;
   if (ed) { const p = placeNow(); $('scaleT').value = Math.round(p.s * 100); $('scaleTv').textContent = Math.round(p.s * 100) + ' %'; }
   /* resolución y fps solo si el formato los usa: el SVG es vectorial y no tiene fotogramas */
-  $('sec_res').hidden = !f.raster; $('sec_fps').hidden = S.fmt === 'svg'; $('fs_size').hidden = $('sec_res').hidden && $('sec_fps').hidden;
+  $('sec_res').hidden = !f.raster; $('sec_fps').hidden = S.fmt === 'svg' || f.still; $('fs_size').hidden = $('sec_res').hidden && $('sec_fps').hidden;
   $('fpsLabel').classList.toggle('first', $('sec_res').hidden);
   updateGroup($('g_fps'), r.why.fps);
   updateSwatch($('sw_l1')); updateSwatch($('sw_l2'), !two);
@@ -172,15 +179,16 @@ function refresh(r) {
   $('g_scale')._items.forEach(it => { it.s = () => FS ? `${even(Math.round(FS.cw * it.v))} × ${even(Math.round(FS.ch * it.v))}` : ''; });
   updateGroup($('g_scale'), r.why.scale);
   if (!has) { $('summary').textContent = 'Escribe un texto en la línea 1.'; $('fname').textContent = ''; return; }
-  const d = outDims(), n = f.raster ? frameCount(TL, EFF.fps) : null;
+  const d = outDims(), n = f.raster && !f.still ? frameCount(TL, EFF.fps) : null;
   const size = f.raster ? `${d.W} × ${d.H}` : (S.fmt === 'lottie' ? `${Math.round(FS.cw)} × ${Math.round(FS.ch)}` : 'vectorial');
-  const bits = [fmtTime(TL.total), size, (f.raster || S.fmt === 'lottie') ? `${EFF.fps} fps` : null, n ? `${n} fotogramas` : null,
+  const bits = [f.still ? null : fmtTime(TL.total), size, (f.raster || S.fmt === 'lottie') && !f.still ? `${EFF.fps} fps` : null, n ? `${n} fotogramas` : null,
     EFF.bg === 'transparent' ? 'fondo transparente' : 'fondo ' + BG[EFF.bg].name.toLowerCase()].filter(Boolean);
   $('summary').textContent = bits.join(' · ');
   $('fname').textContent = fileName();
   $('stageBox').style.aspectRatio = `${FS.cw} / ${FS.ch}`;
   $('stageBox').style.setProperty('--ar', FS.cw / FS.ch);
   $('stageBox').dataset.bg = EFF.bg;
+  $('cv').setAttribute('aria-label', f.still ? 'Vista previa de la imagen del título' : 'Vista previa de la animación del título');
   const sd = $('scrub'); sd.max = TL.total.toFixed(3); sd.step = '0.001';
 }
 
@@ -319,7 +327,13 @@ function download(blob, name) {
   const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = name;
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
-const mb = n => (n / 1048576).toFixed(1).replace('.', ',') + ' MB';
+/* imagen fija: el título completo (el final de la animación) a la resolución elegida */
+function stillBlob(type, bgHex) {
+  const d = outDims(), c = document.createElement('canvas'); c.width = d.W; c.height = d.H;
+  drawFrame(c.getContext('2d'), L, TL, TL.total, FS.view, d.W, d.H, bgHex);
+  return new Promise((ok, no) => c.toBlob(b => b ? ok(b) : no(new Error('el navegador no pudo crear la imagen')), type, 0.95));
+}
+const mb = n => n < 1048576 ? Math.max(1, Math.round(n / 1024)) + ' KB' : (n / 1048576).toFixed(1).replace('.', ',') + ' MB';
 async function doExport(forceFmt) {
   if (!L || busy) return null;
   const fmt = forceFmt || S.fmt, bgHex = BG[EFF.bg].hex;
@@ -331,7 +345,9 @@ async function doExport(forceFmt) {
   const colorsUsed = L.style === 2 ? [bgHex || '#FFFFFF', '#FFFFFF', '#000000', L.color, ...(L.mono ? [L.mono] : [])] : [bgHex || '#FFFFFF', '#FFFFFF', ...L.rows.map(r => r.color), ...L.bands.map(b => b.color)];
   let blob;
   try {
-    if (fmt === 'svg') blob = new Blob([svgFor(L, TL, {fs, bg: bgHex, label: lines().join(' / ')})], {type: 'image/svg+xml'});
+    if (fmt === 'isvg') blob = new Blob([svgFor(L, null, {fs, bg: bgHex, label: lines().join(' / ')})], {type: 'image/svg+xml'});
+    else if (fmt === 'ipng' || fmt === 'ijpg') blob = await stillBlob(fmt === 'ijpg' ? 'image/jpeg' : 'image/png', bgHex);
+    else if (fmt === 'svg') blob = new Blob([svgFor(L, TL, {fs, bg: bgHex, label: lines().join(' / ')})], {type: 'image/svg+xml'});
     else if (fmt === 'lottie') blob = new Blob([JSON.stringify(lottieFor(L, TL, {fs, fps: EFF.fps}))], {type: 'application/json'});
     else if (fmt === 'png') blob = await exportPngZip(L, TL, o, `MiND_Titulo_${slug()}`);
     else if (fmt === 'mov') blob = await exportMov(L, TL, o);
@@ -350,6 +366,19 @@ async function doExport(forceFmt) {
 }
 
 
+
+/* ----- Tipo de archivo: animación o imagen ----- */
+function buildFmtGroup() {
+  radioGroup($('g_fmt'), 'fmt', FORMATS.filter(f => !!f.still === S.still).map(f => ({v: f.id, n: f.name, s: f.use})), () => S.fmt, v => { S.fmt = v; if (S.still) S.lastStill = v; else S.lastAnim = v; rebuild(); });
+}
+function setKind(v) {
+  const still = v === 'img';
+  if (still === S.still) return;
+  S.still = still; S.fmt = still ? S.lastStill : S.lastAnim;
+  buildFmtGroup();
+  if (still) setPlaying(false); else { T = 0; setPlaying(true); }
+  rebuild();
+}
 
 /* ----- Selector de estilo: ejemplos estáticos del propio estilo ----- */
 const STYLE_SAMPLES = {
@@ -398,7 +427,8 @@ function init() {
   $('brand').style.aspectRatio = `${hl.bbox.w} / ${hl.bbox.h}`;
 
   buildStyleCards();
-  radioGroup($('g_fmt'), 'fmt', FORMATS.map(f => ({v: f.id, n: f.name, s: f.use})), () => S.fmt, v => { S.fmt = v; rebuild(); });
+  radioGroup($('g_kind'), 'kind', [{v: 'anim', n: 'Animación'}, {v: 'img', n: 'Imagen'}], () => S.still ? 'img' : 'anim', setKind, 'seg');
+  buildFmtGroup();
   radioGroup($('g_struct'), 'struct', Object.keys(STRUCTS).map(k => ({v: k, n: STRUCTS[k].name, s: STRUCTS[k].sub})), () => S.struct, v => { S.struct = v; T = 0; rebuild(); }, 'cards one');
   radioGroup($('g_repeat'), 'repeat', [{v: 'once', n: 'Una pasada'}, {v: 'loop', n: 'Bucle'}], () => (EFF && EFF.repeat) ? 'loop' : 'once', v => { S.repeat = v === 'loop'; T = 0; rebuild(); }, 'seg');
   radioGroup($('g_bg'), 'bg', Object.keys(BG).map(k => ({v: k, n: BG[k].name})), () => EFF ? EFF.bg : S.bgPref, v => { S.bgPref = v; rebuild(); }, 'seg');
