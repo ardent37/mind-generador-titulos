@@ -44,13 +44,18 @@ function layoutCaps(rawLines, colorHex, mono) {
     if (mono) ln.block = {x0: GEO.left, w: (inkR - inkL) + 2 * lw, y0: base - capH - lw, y1: base};
     lines.push(ln);
   });
+  if (mono) {
+    /* Manual (pág. 41): si parte del monoblock queda en voladizo (la línea es más ancha que la siguiente) o es la última, el
+       bloque se prolonga por debajo de la línea media altura de la "I" (la mitad de la altura de las mayúsculas). */
+    const real = lines.filter(l => !l.empty);
+    real.forEach((ln, j) => {
+      const next = real[j + 1], over = !next || ln.block.w > next.block.w + 0.5;
+      ln.block.y1 = ln.base + (over ? Math.max(capH / 2, (ln.desc || 0) + 0.01 * GEO.F) : 0);
+    });
+  }
   const all = lines.flatMap(l => l.letters || []).filter(Boolean);
   const L = {style: 2, lines, color: colorHex, capH, K, pitch, letters: all, words: wordsOf(rawLines, lines), rows: [{top: GEO.top}], bands: [], two: false,
           bbox: capsBox(lines, capH, mono), H: capH, xh: I_STEM.xh * K, mono: mono || null, lw};
-  if (mono) {                       /* la última fila deja margen inferior (como mínimo ancho de la l; más si hay rabillos) */
-    const real = lines.filter(l => !l.empty), last = real[real.length - 1];
-    last.block.y1 = last.base + Math.max(lw, (last.desc || 0) + lw / 2);
-  }
   return L;
 }
 /* palabras = grupos de letras entre espacios, dentro de cada línea */
@@ -67,8 +72,7 @@ function wordsOf(rawLines, lines) {
 function capsBox(lines, capH, mono) {
   const real = lines.filter(l => !l.empty);
   if (mono) {
-    const lw = real[0].block.y1 - real[0].block.y0 - capH, last = real[real.length - 1];
-    const bottom = last.base + Math.max(lw, (last.desc || 0) + lw / 2);
+    const bottom = Math.max(...real.map(l => l.block.y1));
     return {x: GEO.left, y: real[0].block.y0, w: Math.max(...real.map(l => l.block.w)), h: bottom - real[0].block.y0};
   }
   const first = real[0], last = real[real.length - 1];
