@@ -62,13 +62,14 @@ function tp(p, k, ox, oy) {
   });
 }
 
-function layoutLine(text, arrow, baseline) {
+function layoutLine(text, arrow, baseline, dx) {
+  dx = dx || 0;
   const {k, w, H} = metrics();
   const run = shapeRun(text, arrow).filter(r => D.glyphs[r.g].b);
   const inkL = Math.min(...run.map(r => r.x + D.glyphs[r.g].b[0])) * k;
   const inkR = Math.max(...run.map(r => r.x + D.glyphs[r.g].b[2])) * k;
   const padL = w * (arrow ? GEO.arrowPadL : 1.0), padR = w * GEO.padR;
-  const x0 = GEO.left + padL - inkL, bw = padL + (inkR - inkL) + padR;
+  const x0 = GEO.left + dx + padL - inkL, bw = padL + (inkR - inkL) + padR;
   let d = ''; const desc = [], asc = [];
   run.forEach(r => {
     const g = D.glyphs[r.g], b = g.b;
@@ -77,30 +78,32 @@ function layoutLine(text, arrow, baseline) {
     if (-b[1] * k > 0.06 * GEO.F) desc.push([gl, gr]);
     if (b[3] * k > H + 1.0) asc.push([gl, gr]);
   });
-  return {d, w: bw, desc, asc};
+  return {d, w: bw, desc, asc, x0: GEO.left + dx};
 }
 
 /* Disposición estática: bloques, bandas auxiliares y caja envolvente. */
-function layout(lines, colors) {
+function layout(lines, colors, align) {
   const {H} = metrics(); const rows = [];
+  /* alineación a la derecha: se mide el ancho de cada línea y se desplaza para que todos los bloques acaben en el mismo borde */
+  const widths = lines.map((t, i) => layoutLine(t, i === 0, 0).w), maxW = Math.max(...widths);
   lines.forEach((t, i) => {
     const top = GEO.top + i * H;
-    const ln = layoutLine(t, i === 0, top + H);
+    const ln = layoutLine(t, i === 0, top + H, align === 'right' ? maxW - widths[i] : 0);
     rows.push(Object.assign(ln, {top, bottom: top + H, i, color: PALETTE[i === 0 ? colors.l1 : colors.l2].hex}));
   });
   const first = rows[0], last = rows[rows.length - 1], bands = [];
   if (first.asc.length) {
     const gl = Math.min(...first.asc.map(a => a[0])), gr = Math.max(...first.asc.map(a => a[1]));
-    let x0 = GEO.left + GEO.atOff * H; if (gl < x0 + 0.1 * H) x0 = Math.max(GEO.left, gl - 0.25 * H);
+    const lf = first.x0; let x0 = lf + GEO.atOff * H; if (gl < x0 + 0.1 * H) x0 = Math.max(lf, gl - 0.25 * H);
     bands.push({kind: 'top', x: x0, w: Math.max(GEO.atLen * H, gr - x0 + 0.25 * H), h: H / 2, edge: first.top, color: PALETTE[colors.top].hex, row: 0});
   }
   if (last.desc.length) {
     const gl = Math.min(...last.desc.map(a => a[0])), gr = Math.max(...last.desc.map(a => a[1]));
-    let x0 = GEO.left + GEO.abOff * H; if (gl < x0 + 0.1 * H) x0 = Math.max(GEO.left, gl - 0.25 * H);
+    const lf = last.x0; let x0 = lf + GEO.abOff * H; if (gl < x0 + 0.1 * H) x0 = Math.max(lf, gl - 0.25 * H);
     bands.push({kind: 'bottom', x: x0, w: Math.max(GEO.abLen * H, gr - x0 + 0.25 * H), h: H / 2, edge: last.bottom, color: PALETTE[colors.bottom].hex, row: rows.length - 1});
   }
   const bx0 = GEO.left, by0 = Math.min(first.top, ...bands.filter(b => b.kind === 'top').map(b => b.edge - b.h));
-  const bx1 = Math.max(...rows.map(r => GEO.left + r.w), ...bands.map(b => b.x + b.w));
+  const bx1 = Math.max(...rows.map(r => r.x0 + r.w), ...bands.map(b => b.x + b.w));
   const by1 = Math.max(last.bottom, ...bands.filter(b => b.kind === 'bottom').map(b => b.edge + b.h));
   return {H, rows, bands, two: rows.length === 2, bbox: {x: bx0, y: by0, w: bx1 - bx0, h: by1 - by0}};
 }
@@ -203,9 +206,9 @@ function drawFrame(ctx, L, TL, t, view, W, Hh, bg) {
     const p = elProg(TL, 'L' + r.i, t);
     if (p <= 0) return;
     ctx.fillStyle = r.color;
-    ctx.fillRect(LEFT, r.top, r.w * p, H);
+    ctx.fillRect(r.x0, r.top, r.w * p, H);
     const clip = new Path2D();
-    clip.rect(LEFT, r.top, r.w * p, (L.two && r.i === 0) ? EXT : H);
+    clip.rect(r.x0, r.top, r.w * p, (L.two && r.i === 0) ? EXT : H);
     L.bands.forEach((b, n) => {
       if (b.row !== r.i) return;
       const q = elProg(TL, 'B' + n, t); if (q <= 0) return;
@@ -266,12 +269,12 @@ function svgFor(L, TL, o) {
     const dw = TL ? animEl('animate', 'attributeName="width"', segsOf(id), total, loop, wAt) : '';
     const dx = TL ? animEl('animateTransform', 'attributeName="transform" type="translate"', segsOf(id), total, loop, p => `${f2(-r.w * (1 - p))} 0`) : '';
     const clipH = (L.two && r.i === 0) ? EXT : H;
-    let rects = `<rect x="${f2(LEFT)}" y="${f2(r.top)}" width="${wAt(p0)}" height="${f2(clipH)}">${dw}</rect>`;
+    let rects = `<rect x="${f2(r.x0)}" y="${f2(r.top)}" width="${wAt(p0)}" height="${f2(clipH)}">${dw}</rect>`;
     L.bands.forEach((b, n) => {
       if (b.row === r.i) rects += `<rect x="${f2(b.x)}" y="${b.sv.yAt(b.sv.p0)}" width="${f2(b.w)}" height="${b.sv.hAt(b.sv.p0)}">${b.sv.dy}${b.sv.dh}</rect>`;
     });
     defs.push(`<clipPath id="${uid}c${r.i}">${rects}</clipPath>`);
-    body.push(`<rect x="${f2(LEFT)}" y="${f2(r.top)}" width="${wAt(p0)}" height="${f2(H)}" fill="${r.color}">${dw}</rect>`);
+    body.push(`<rect x="${f2(r.x0)}" y="${f2(r.top)}" width="${wAt(p0)}" height="${f2(H)}" fill="${r.color}">${dw}</rect>`);
     body.push(`<g clip-path="url(#${uid}c${r.i})"><path d="${r.d}" fill="#FFFFFF" transform="translate(${f2(-r.w * (1 - p0))},0)">${dx}</path></g>`);
   });
   const label = (o.label || '').replace(/[<>&-]/g, ' ');

@@ -28,7 +28,7 @@ const STRUCTS = {
 };
 const FRAMES = [{v: 'crop', n: 'Recortado al título', s: 'Sin margen. Ideal para superponer.'}, {v: '16x9', n: '16:9'}, {v: '9x16', n: '9:16'}, {v: '4x5', n: '4:5'}, {v: '1x1', n: '1:1'}];
 
-const S = {style: 'color', capsLines: ['Título de', 'inicial'], capsColor: 'rojo0', monoBlock: 'negro', l1: 'Área de', l2: 'seguridad', fmt: 'mp4', still: false, lastAnim: 'mp4', lastStill: 'ipng', struct: 'in', repeat: false, bgPref: 'transparent', frame: '16x9', scalePref: 1, fpsPref: 60,
+const S = {style: 'color', capsLines: ['Título de', 'inicial'], capsColor: 'rojo0', monoBlock: 'negro', l1: 'Área de', l2: 'seguridad', align: 'left', fmt: 'mp4', still: false, lastAnim: 'mp4', lastStill: 'ipng', struct: 'in', repeat: false, bgPref: 'transparent', frame: '16x9', scalePref: 1, fpsPref: 60,
   colors: {l1: 'azul', l2: 'rojo', top: 'amarillo', bottom: 'naranja'}, place: {}};
 const HAS_CODECS = supportsCodecs();
 let L = null, TL = null, EFF = null, T = 0, playing = true, busy = null, FS = null;
@@ -114,7 +114,7 @@ function placeNow() {
 }
 function outDims() { return {W: even(Math.round(FS.cw * EFF.scale)), H: even(Math.round(FS.ch * EFF.scale))}; }
 function fileName() {
-  const f = fmtDef(S.fmt), pre = S.style === 'caps' ? 'mayusculas_' : S.style === 'mono' ? 'monoblock_' : '';
+  const f = fmtDef(S.fmt), pre = (S.style === 'caps' ? 'mayusculas_' : S.style === 'mono' ? 'monoblock_' : '') + (S.align === 'right' ? 'derecha_' : '');
   const base = f.still ? `MiND_Titulo_${slug()}_${pre}imagen` : `MiND_Titulo_${slug()}_${pre}${STRUCTS[S.struct].code}${EFF.repeat ? '-bucle' : ''}`;
   const fr = S.frame === 'crop' ? 'recortado' : S.frame;
   if (!f.raster) return `${base}_${fr}.${f.ext}`;
@@ -130,8 +130,8 @@ function rebuild() {
   $('warn').textContent = miss.length ? 'Estos caracteres no están disponibles y se omiten: ' + miss.join(' ') : '';
   const r = rules(); EFF = r.e;
   if (!hasInk) { L = null; TL = null; FS = null; refresh(r); return; }
-  L = S.style === 'caps' ? layoutCaps(ls, PALETTE[S.capsColor].hex)
-    : S.style === 'mono' ? layoutCaps(ls, monoText(), PALETTE[S.monoBlock].hex) : layout(ls, S.colors);
+  L = S.style === 'caps' ? layoutCaps(ls, PALETTE[S.capsColor].hex, null, S.align)
+    : S.style === 'mono' ? layoutCaps(ls, monoText(), PALETTE[S.monoBlock].hex, S.align) : layout(ls, S.colors, S.align);
   TL = buildTimeline(L, S.still ? 'once' : modeOf(), TIMING);
   if (S.still) { T = TL.total; }          /* imagen: el título ya completo */
   if (S.frame !== 'crop' && S.place[S.frame] && !S.place[S.frame].touched) S.place[S.frame] = null;   /* sin tocar: recalcula la posición por defecto */
@@ -152,6 +152,7 @@ function refresh(r) {
   $('note_caps').textContent = S.style === 'caps' && bgHexNow && bgHexNow.toUpperCase() === tcol.toUpperCase() ? 'El texto y el fondo son del mismo color: no se vería.' : '';
   const bcol = PALETTE[S.monoBlock].hex;
   $('note_mono').textContent = mono && bgHexNow && bgHexNow.toUpperCase() === bcol.toUpperCase() ? 'El bloque y el fondo son del mismo color: el bloque no se distinguiría.' : 'El texto toma el color contrario al del bloque.';
+  updateGroup($('g_align'));
   updateGroup($('g_kind'));
   updateGroup($('g_fmt'), r.why.fmt);
   $('fs_anim').hidden = f.still; $('transport').hidden = f.still;
@@ -448,6 +449,7 @@ function init() {
   $('brand').style.aspectRatio = `${hl.bbox.w} / ${hl.bbox.h}`;
 
   buildStyleCards();
+  radioGroup($('g_align'), 'align', [{v: 'left', n: 'Izquierda'}, {v: 'right', n: 'Derecha'}], () => S.align, v => { S.align = v; T = 0; rebuild(); }, 'seg');
   radioGroup($('g_kind'), 'kind', [{v: 'anim', n: 'Animación'}, {v: 'img', n: 'Imagen'}], () => S.still ? 'img' : 'anim', setKind, 'seg');
   buildFmtGroup();
   radioGroup($('g_struct'), 'struct', Object.keys(STRUCTS).map(k => ({v: k, n: STRUCTS[k].name, s: STRUCTS[k].sub})), () => S.struct, v => { S.struct = v; T = 0; rebuild(); }, 'cards one');

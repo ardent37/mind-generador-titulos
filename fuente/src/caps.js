@@ -12,11 +12,18 @@ function capsPrep(text) { return [...text].map(c => c.toUpperCase() === 'I' ? 'i
 
 /* mono = color del monoblock (tercer estilo): un bloque por línea tras el texto. Margen lateral y superior = ancho de la l;
    el interlineado (= ancho de la l) queda dentro del bloque de la línea siguiente, de modo que las filas encajan sin huecos. */
-function layoutCaps(rawLines, colorHex, mono) {
+function layoutCaps(rawLines, colorHex, mono, align) {
   let L_accent = false;
   const K = GEO.F / D.upm, capH = D.cap * K, lw = D.lw * K, pitch = capH + lw;     /* interlineado = ancho de la l */
   const pad = mono ? lw : 0;
   const iPath = D.glyphs[D.chars['i']].p, dotP = iPath.slice(iPath.indexOf('Z') + 1);   /* 2.º trazado de la i = el punto */
+  /* anchos de tinta de cada línea (para alinear a la derecha) */
+  const spans = rawLines.map(raw => {
+    const chars = [...capsPrep(raw)].filter(c => D.chars[c]); let x = 0; const run = [];
+    chars.forEach((c, n) => { const g = D.glyphs[D.chars[c]]; run.push({g, x}); x += g.a + (chars[n + 1] ? (D.kern[c + chars[n + 1]] || 0) : 0); });
+    const ink = run.filter(r => r.g.b); if (!ink.length) return 0;
+    return (Math.max(...ink.map(r => r.x + r.g.b[2])) - Math.min(...ink.map(r => r.x + r.g.b[0]))) * K;
+  }), maxSpan = Math.max(...spans);
   let k = 0; const lines = [];
   rawLines.forEach((raw, li) => {
     const text = capsPrep(raw), base = GEO.top + capH + pad + li * pitch, chars = [...text].filter(c => D.chars[c]);
@@ -26,7 +33,8 @@ function layoutCaps(rawLines, colorHex, mono) {
     const ink = run.filter(r => r.g.b);
     if (!ink.length) { lines.push({letters: [], base, floorY: base, limitY: base, width: 0, empty: true}); return; }
     const inkL = Math.min(...ink.map(r => r.x + r.g.b[0])) * K, inkR = Math.max(...ink.map(r => r.x + r.g.b[2])) * K;
-    const ox = GEO.left + pad - inkL;
+    const dx = align === 'right' ? maxSpan - spans[li] : 0;
+    const ox = GEO.left + dx + pad - inkL;
     const letters = [];
     run.forEach(r => {
       if (r.c === ' ') return;
@@ -42,7 +50,7 @@ function layoutCaps(rawLines, colorHex, mono) {
     const limitY = base - I_STEM.dotTop * K - 0.01 * GEO.F;
     letters.forEach(l => { l.hide = (floorY - base) + l.top + 2; l.dotDy = (limitY - (base - I_STEM.dotBot * K)) - 2; });
     const ln = {letters, base, floorY, limitY, width: (inkR - inkL), desc};
-    if (mono) ln.block = {x0: GEO.left, w: (inkR - inkL) + 2 * lw, y0: base - capH - lw, y1: base};
+    if (mono) ln.block = {x0: GEO.left + dx, w: (inkR - inkL) + 2 * lw, y0: base - capH - lw, y1: base};
     lines.push(ln);
   });
   if (mono) {

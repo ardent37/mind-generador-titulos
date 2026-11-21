@@ -60,7 +60,7 @@ function lottieFor(L, TL, o) {
   const layer = (nm, shapes, extra) => Object.assign({ddd: 0, ind: ind++, ty: 4, nm, sr: 1, ks: baseKs(), ao: 0, shapes, ip: 0, op, st: 0, bm: 0}, extra || {});
 
   /* geometría animada de cada elemento (rectángulos visibles) */
-  const blockRc = r => rc('L' + r.i, p => q(r.w * p), () => q(H), p => q(LEFT + r.w * p / 2 - ox), () => q(r.top + H / 2 - oy));
+  const blockRc = r => rc('L' + r.i, p => q(r.w * p), () => q(H), p => q(r.x0 + r.w * p / 2 - ox), () => q(r.top + H / 2 - oy));
   const bandRc = (b, n) => rc('B' + n, () => q(b.w), p => q(b.h * p), () => q(b.x + b.w / 2 - ox),
     p => q((b.kind === 'top' ? b.edge - b.h * p / 2 : b.edge + b.h * p / 2) - oy));
 
@@ -68,7 +68,7 @@ function lottieFor(L, TL, o) {
     const id = 'L' + r.i;
     /* máscara: bloque visible + bandas de la fila (+ muy por debajo en la 1ª línea de dos) */
     const clipH = (L.two && r.i === 0) ? EXT : H;
-    const matteShapes = [{ty: 'gr', nm: 'Bloque', it: [rc(id, p => q(r.w * p), () => q(clipH), p => q(LEFT + r.w * p / 2 - ox), () => q(r.top + clipH / 2 - oy)), fill('#FFFFFF'), tr()]}];
+    const matteShapes = [{ty: 'gr', nm: 'Bloque', it: [rc(id, p => q(r.w * p), () => q(clipH), p => q(r.x0 + r.w * p / 2 - ox), () => q(r.top + clipH / 2 - oy)), fill('#FFFFFF'), tr()]}];
     L.bands.forEach((b, n) => { if (b.row === r.i) matteShapes.push({ty: 'gr', nm: 'Banda', it: [bandRc(b, n), fill('#FFFFFF'), tr()]}); });
     const textPos = {a: 1, k: kf(segsOf(id), p => [q(-r.w * (1 - p)), 0, 0])};
     const subs = pathToLottie(r.d, view, K);
