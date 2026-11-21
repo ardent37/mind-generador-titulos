@@ -284,8 +284,8 @@ function commitPlace() {
 }
 /* Tamaño del texto: cuerpo en pt del cuadro (1 pt = 1 px a resolución Estándar). Con escala 100 % el cuerpo es GEO.F. */
 const PT_MIN = 20, PT_MAX = 900;
-/* Canva mide el cuerpo en pt a 96 ppp (1 px = 0,75 pt). Documento de Canva = la imagen exportada, así que depende de la resolución elegida. */
-const CANVA_K = 0.75;
+/* Segundo sistema de tamaño: pt de la imagen exportada impresa a 300 ppp (1 px = 72/300 pt). Depende de la resolución elegida. */
+const CANVA_K = 72 / 300;
 const canvaRes = () => (EFF && EFF.scale) || S.scalePref || 1;
 const fmtCv = v => String(Math.round(v * 10) / 10);
 function syncScale() {
@@ -293,7 +293,7 @@ function syncScale() {
   $('scaleT').value = Math.round(p.s * 100);
   if (document.activeElement !== $('scalePt')) $('scalePt').value = pt;
   if (document.activeElement !== $('scaleCv')) $('scaleCv').value = fmtCv(p.s * GEO.F * canvaRes() * CANVA_K);
-  $('cvNote').textContent = `Para un documento de Canva de ${outDims().W} × ${outDims().H} (el tamaño de la imagen exportada).`;
+  $('cvNote').textContent = `Medido sobre la imagen exportada (${outDims().W} × ${outDims().H} px) a 300 ppp.`;
 }
 function scaleAboutCenter(ns) {
   const p = placeNow(), b = boxRect(), cx = b.x + b.w / 2, cy = b.y + b.h / 2;
