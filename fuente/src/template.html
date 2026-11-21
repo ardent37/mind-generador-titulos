@@ -135,6 +135,9 @@ input[type=text]:focus-visible{border-color:var(--azul);outline-color:var(--azul
 .titlebox{margin-top:28px;display:grid;gap:14px}
 .range{display:flex;align-items:center;gap:14px}
 .range input{flex:1;min-width:0;accent-color:var(--azul);height:44px}
+.ptbox{display:flex;align-items:center;gap:6px;font-weight:700;font-size:.8rem}
+.ptbox input{flex:none;width:84px;height:44px;padding:0 10px;border:2px solid var(--line,#d0d0d0);font:inherit;font-weight:700;font-variant-numeric:tabular-nums;text-align:right;background:#fff}
+.ptbox input:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 .range .v{min-width:48px;text-align:right;font-variant-numeric:tabular-nums;font-weight:700;font-size:.8rem}
 button.mini{font:700 .78rem var(--font);padding:10px 14px;background:var(--soft);color:var(--ink);border:2px solid transparent;cursor:pointer;min-height:44px;justify-self:start}
 button.mini:hover{border-color:var(--ink)}
@@ -231,8 +234,9 @@ footer{max-width:1180px;margin:0 auto;padding:0 32px 40px;color:#9a9a9a;font-siz
         <span class="sub first">Formato del cuadro</span>
         <div id="g_frame"></div>
         <div class="titlebox" id="titleBox" hidden>
-          <span class="sub" style="margin:0">Tamaño del título</span>
-          <div class="range"><input id="scaleT" type="range" min="15" max="300" step="1" value="100" aria-label="Tamaño del título dentro del cuadro"><span class="v" id="scaleTv">100 %</span></div>
+          <span class="sub" style="margin:0">Tamaño del texto</span>
+          <div class="range"><input id="scaleT" type="range" min="15" max="300" step="1" value="100" aria-label="Tamaño del título dentro del cuadro"><label class="ptbox"><input id="scalePt" type="number" min="20" max="900" step="1" inputmode="numeric" aria-label="Tamaño del texto en puntos"><span>pt</span></label></div>
+          <p class="note" style="margin:0">Cuerpo del texto en puntos. 1 pt = 1 px con la resolución Estándar.</p>
           <button class="mini" id="resetPlace" type="button">Restablecer posición</button>
         </div>
         <span class="sub">Fondo</span>

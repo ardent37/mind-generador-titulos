@@ -137,6 +137,9 @@ input[type=text]:focus-visible{border-color:var(--azul);outline-color:var(--azul
 .titlebox{margin-top:28px;display:grid;gap:14px}
 .range{display:flex;align-items:center;gap:14px}
 .range input{flex:1;min-width:0;accent-color:var(--azul);height:44px}
+.ptbox{display:flex;align-items:center;gap:6px;font-weight:700;font-size:.8rem}
+.ptbox input{flex:none;width:84px;height:44px;padding:0 10px;border:2px solid var(--line,#d0d0d0);font:inherit;font-weight:700;font-variant-numeric:tabular-nums;text-align:right;background:#fff}
+.ptbox input:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 .range .v{min-width:48px;text-align:right;font-variant-numeric:tabular-nums;font-weight:700;font-size:.8rem}
 button.mini{font:700 .78rem var(--font);padding:10px 14px;background:var(--soft);color:var(--ink);border:2px solid transparent;cursor:pointer;min-height:44px;justify-self:start}
 button.mini:hover{border-color:var(--ink)}
@@ -233,8 +236,9 @@ footer{max-width:1180px;margin:0 auto;padding:0 32px 40px;color:#9a9a9a;font-siz
         <span class="sub first">Formato del cuadro</span>
         <div id="g_frame"></div>
         <div class="titlebox" id="titleBox" hidden>
-          <span class="sub" style="margin:0">Tamaño del título</span>
-          <div class="range"><input id="scaleT" type="range" min="15" max="300" step="1" value="100" aria-label="Tamaño del título dentro del cuadro"><span class="v" id="scaleTv">100 %</span></div>
+          <span class="sub" style="margin:0">Tamaño del texto</span>
+          <div class="range"><input id="scaleT" type="range" min="15" max="300" step="1" value="100" aria-label="Tamaño del título dentro del cuadro"><label class="ptbox"><input id="scalePt" type="number" min="20" max="900" step="1" inputmode="numeric" aria-label="Tamaño del texto en puntos"><span>pt</span></label></div>
+          <p class="note" style="margin:0">Cuerpo del texto en puntos. 1 pt = 1 px con la resolución Estándar.</p>
           <button class="mini" id="resetPlace" type="button">Restablecer posición</button>
         </div>
         <span class="sub">Fondo</span>
@@ -3343,7 +3347,7 @@ function refresh(r) {
   updateGroup($('g_bg'), r.why.bg);
   updateGroup($('g_frame'));
   $('titleBox').hidden = !ed;
-  if (ed) { const p = placeNow(); $('scaleT').value = Math.round(p.s * 100); $('scaleTv').textContent = Math.round(p.s * 100) + ' %'; }
+  if (ed) syncScale();
   /* resolución y fps solo si el formato los usa: el SVG es vectorial y no tiene fotogramas */
   $('sec_res').hidden = !f.raster; $('sec_fps').hidden = S.fmt === 'svg' || f.still; $('fs_size').hidden = $('sec_res').hidden && $('sec_fps').hidden;
   $('fpsLabel').classList.toggle('first', $('sec_res').hidden);
@@ -3458,12 +3462,19 @@ function applyDrag(pt) {
   p.touched = true; commitPlace();
 }
 function commitPlace() {
-  FS = frameSpec(L, S.frame, placeNow()); const p = placeNow();
-  $('scaleT').value = Math.round(p.s * 100); $('scaleTv').textContent = Math.round(p.s * 100) + ' %';
+  FS = frameSpec(L, S.frame, placeNow());
+  syncScale();
+}
+/* Tamaño del texto: cuerpo en pt del cuadro (1 pt = 1 px a resolución Estándar). Con escala 100 % el cuerpo es GEO.F. */
+const PT_MIN = 20, PT_MAX = 900;
+function syncScale() {
+  const p = placeNow(), pt = Math.round(p.s * GEO.F);
+  $('scaleT').value = Math.round(p.s * 100);
+  if (document.activeElement !== $('scalePt')) $('scalePt').value = pt;
 }
 function scaleAboutCenter(ns) {
   const p = placeNow(), b = boxRect(), cx = b.x + b.w / 2, cy = b.y + b.h / 2;
-  ns = Math.min(5, Math.max(0.15, ns));
+  ns = Math.min(PT_MAX / GEO.F, Math.max(PT_MIN / GEO.F, ns));
   p.s = ns; p.x = cx - L.bbox.w * ns / 2; p.y = cy - L.bbox.h * ns / 2; p.touched = true; commitPlace();
 }
 function initEditing() {
@@ -3499,6 +3510,10 @@ function initEditing() {
     p.touched = true; commitPlace(); e.preventDefault();
   });
   $('scaleT').addEventListener('input', e => { if (editable()) scaleAboutCenter(parseInt(e.target.value, 10) / 100); });
+  const pt = $('scalePt');
+  pt.addEventListener('input', () => { const v = parseFloat(pt.value); if (editable() && v >= PT_MIN && v <= PT_MAX) scaleAboutCenter(v / GEO.F); });
+  pt.addEventListener('change', () => { pt.blur(); if (L && S.frame !== 'crop') syncScale(); });
+  pt.addEventListener('keydown', e => { if (e.key === 'Enter') pt.blur(); });
   $('resetPlace').addEventListener('click', () => { S.place[S.frame] = null; rebuild(); });
 }
 function fileUpdate() { if (L) $('fname').textContent = fileName(); }

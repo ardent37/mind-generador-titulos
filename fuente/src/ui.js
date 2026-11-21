@@ -162,7 +162,7 @@ function refresh(r) {
   updateGroup($('g_bg'), r.why.bg);
   updateGroup($('g_frame'));
   $('titleBox').hidden = !ed;
-  if (ed) { const p = placeNow(); $('scaleT').value = Math.round(p.s * 100); $('scaleTv').textContent = Math.round(p.s * 100) + ' %'; }
+  if (ed) syncScale();
   /* resolución y fps solo si el formato los usa: el SVG es vectorial y no tiene fotogramas */
   $('sec_res').hidden = !f.raster; $('sec_fps').hidden = S.fmt === 'svg' || f.still; $('fs_size').hidden = $('sec_res').hidden && $('sec_fps').hidden;
   $('fpsLabel').classList.toggle('first', $('sec_res').hidden);
@@ -277,12 +277,19 @@ function applyDrag(pt) {
   p.touched = true; commitPlace();
 }
 function commitPlace() {
-  FS = frameSpec(L, S.frame, placeNow()); const p = placeNow();
-  $('scaleT').value = Math.round(p.s * 100); $('scaleTv').textContent = Math.round(p.s * 100) + ' %';
+  FS = frameSpec(L, S.frame, placeNow());
+  syncScale();
+}
+/* Tamaño del texto: cuerpo en pt del cuadro (1 pt = 1 px a resolución Estándar). Con escala 100 % el cuerpo es GEO.F. */
+const PT_MIN = 20, PT_MAX = 900;
+function syncScale() {
+  const p = placeNow(), pt = Math.round(p.s * GEO.F);
+  $('scaleT').value = Math.round(p.s * 100);
+  if (document.activeElement !== $('scalePt')) $('scalePt').value = pt;
 }
 function scaleAboutCenter(ns) {
   const p = placeNow(), b = boxRect(), cx = b.x + b.w / 2, cy = b.y + b.h / 2;
-  ns = Math.min(5, Math.max(0.15, ns));
+  ns = Math.min(PT_MAX / GEO.F, Math.max(PT_MIN / GEO.F, ns));
   p.s = ns; p.x = cx - L.bbox.w * ns / 2; p.y = cy - L.bbox.h * ns / 2; p.touched = true; commitPlace();
 }
 function initEditing() {
@@ -318,6 +325,10 @@ function initEditing() {
     p.touched = true; commitPlace(); e.preventDefault();
   });
   $('scaleT').addEventListener('input', e => { if (editable()) scaleAboutCenter(parseInt(e.target.value, 10) / 100); });
+  const pt = $('scalePt');
+  pt.addEventListener('input', () => { const v = parseFloat(pt.value); if (editable() && v >= PT_MIN && v <= PT_MAX) scaleAboutCenter(v / GEO.F); });
+  pt.addEventListener('change', () => { pt.blur(); if (L && S.frame !== 'crop') syncScale(); });
+  pt.addEventListener('keydown', e => { if (e.key === 'Enter') pt.blur(); });
   $('resetPlace').addEventListener('click', () => { S.place[S.frame] = null; rebuild(); });
 }
 function fileUpdate() { if (L) $('fname').textContent = fileName(); }
